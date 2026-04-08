@@ -1,19 +1,20 @@
 <?php
 session_start();
 
-$ch = curl_init("https://ddrop.net/api/db.php");
+$ch = curl_init("https://ddrop.net/api/drops.php");
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-$dbCode = curl_exec($ch);
+$response = curl_exec($ch);
 curl_close($ch);
 
-if ($dbCode === false) {
-    die("CURL ERROR");
+if ($response === false) {
+    die("API ERROR");
 }
 
-eval("?>".$dbCode);
+$drops = json_decode($response, true);
 
-$stmt = $pdo->query("SELECT * FROM drops ORDER BY release_date ASC");
-$drops = $stmt->fetchAll();
+if (!is_array($drops)) {
+    die("INVALID API RESPONSE");
+}
 
 $isLoggedIn = isset($_SESSION['user']);
 $username = $isLoggedIn ? $_SESSION['user']['username'] : null;
@@ -89,3 +90,4 @@ $username = $isLoggedIn ? $_SESSION['user']['username'] : null;
     </div>
 </body>
 </html>
+```
