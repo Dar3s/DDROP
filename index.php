@@ -1,7 +1,16 @@
 <?php
 session_start();
 
-require_once 'https://ddrop.net/api/db.php';
+$ch = curl_init("https://ddrop.net/api/db.php");
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$dbCode = curl_exec($ch);
+curl_close($ch);
+
+if ($dbCode === false) {
+    die("CURL ERROR");
+}
+
+eval("?>".$dbCode);
 
 $stmt = $pdo->query("SELECT * FROM drops ORDER BY release_date ASC");
 $drops = $stmt->fetchAll();
