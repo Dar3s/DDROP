@@ -1,7 +1,7 @@
-<!DOCTYPE html>
 <?php
 session_start();
-require_once __DIR__ . '/../config/db.php';
+
+require_once 'https://ddrop.net/api/db.php';
 
 $stmt = $pdo->query("SELECT * FROM drops ORDER BY release_date ASC");
 $drops = $stmt->fetchAll();
@@ -9,6 +9,8 @@ $drops = $stmt->fetchAll();
 $isLoggedIn = isset($_SESSION['user']);
 $username = $isLoggedIn ? $_SESSION['user']['username'] : null;
 ?>
+
+<!DOCTYPE html>
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
