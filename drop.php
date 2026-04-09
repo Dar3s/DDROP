@@ -7,7 +7,6 @@ if ($id <= 0) {
     die("Neplatné ID");
 }
 
-
 $url = "https://ddrop.net/api/drops.php?id=" . $id;
 
 $ch = curl_init($url);
@@ -28,18 +27,26 @@ if ($response === false) {
 
 curl_close($ch);
 
-
 $response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
-
 
 $data = json_decode($response, true);
 
-if (!is_array($data)) {
+if ($data === null) {
     die("JSON ERROR: " . json_last_error_msg());
 }
 
+$drop = null;
 
-$drop = isset($data[0]) ? $data[0] : $data;
+if (isset($data['id']) && (int)$data['id'] === $id) {
+    $drop = $data;
+} elseif (is_array($data)) {
+    foreach ($data as $item) {
+        if (isset($item['id']) && (int)$item['id'] === $id) {
+            $drop = $item;
+            break;
+        }
+    }
+}
 
 if (!$drop) {
     die('Drop nebyl nalezen.');
@@ -84,25 +91,25 @@ if (!$drop) {
 <div class="bg-lightning"></div>
 
 <section class="hero drop-hero">
-    <h1><?= htmlspecialchars($drop['title']) ?></h1>
+    <h1><?= htmlspecialchars($drop['title'] ?? 'Bez názvu') ?></h1>
 </section>
 
 <div class="drops drops-single">
     <div class="card">
 
         <img
-            src="<?= htmlspecialchars($drop['image_url'] ?: 'assets/img/placeholder.png') ?>"
-            alt="<?= htmlspecialchars($drop['title']) ?>"
+            src="<?= htmlspecialchars(!empty($drop['image_url']) ? $drop['image_url'] : 'assets/img/placeholder.png') ?>"
+            alt="<?= htmlspecialchars($drop['title'] ?? 'Produkt') ?>"
             onerror="this.src='assets/img/placeholder.png'"
         >
 
-        <p><strong>Značka:</strong> <?= htmlspecialchars($drop['brand'] ?: 'Neuvedeno') ?></p>
-        <p><strong>Model:</strong> <?= htmlspecialchars($drop['model'] ?: 'Neuvedeno') ?></p>
-        <p><strong>SKU:</strong> <?= htmlspecialchars($drop['sku'] ?: 'Neuvedeno') ?></p>
-        <p><strong>Colorway:</strong> <?= htmlspecialchars($drop['colorway'] ?: 'Neuvedeno') ?></p>
-        <p><strong>Datum dropu:</strong> <?= htmlspecialchars($drop['release_date'] ?: 'Neuvedeno') ?></p>
-        <p><strong>Retail cena:</strong> <?= htmlspecialchars($drop['retail_price']) ?> <?= htmlspecialchars($drop['currency'] ?: 'EUR') ?></p>
-        <p><strong>Store:</strong> <?= htmlspecialchars($drop['store_name'] ?: 'Neuvedeno') ?></p>
+        <p><strong>Značka:</strong> <?= htmlspecialchars($drop['brand'] ?? 'Neuvedeno') ?></p>
+        <p><strong>Model:</strong> <?= htmlspecialchars($drop['model'] ?? 'Neuvedeno') ?></p>
+        <p><strong>SKU:</strong> <?= htmlspecialchars($drop['sku'] ?? 'Neuvedeno') ?></p>
+        <p><strong>Colorway:</strong> <?= htmlspecialchars($drop['colorway'] ?? 'Neuvedeno') ?></p>
+        <p><strong>Datum dropu:</strong> <?= htmlspecialchars($drop['release_date'] ?? 'Neuvedeno') ?></p>
+        <p><strong>Retail cena:</strong> <?= htmlspecialchars($drop['retail_price'] ?? 'Neuvedeno') ?> <?= htmlspecialchars($drop['currency'] ?? 'EUR') ?></p>
+        <p><strong>Store:</strong> <?= htmlspecialchars($drop['store_name'] ?? 'Neuvedeno') ?></p>
 
         <?php if (!empty($drop['description'])): ?>
             <p><?= nl2br(htmlspecialchars($drop['description'])) ?></p>
@@ -128,7 +135,7 @@ if (!$drop) {
 
         <div class="drop-actions">
             <?php if (!empty($drop['store_link'])): ?>
-                <a class="btn" href="<?= htmlspecialchars($drop['store_link']) ?>" target="_blank">
+                <a class="btn" href="<?= htmlspecialchars($drop['store_link']) ?>" target="_blank" rel="noopener noreferrer">
                     Přejít na store
                 </a>
             <?php endif; ?>
@@ -149,10 +156,9 @@ function generateSummary() {
     loading.style.display = 'flex';
     text.innerText = '';
 
-    fetch('https://ddrop.net/api/generate_summary.php?id=<?= $drop['id'] ?>')
-        .then(res => res.text()) 
+    fetch('https://ddrop.net/api/generate_summary.php?id=<?= (int)($drop['id'] ?? 0) ?>')
+        .then(res => res.text())
         .then(raw => {
-            
             raw = raw.replace(/^\uFEFF/, '');
 
             let data;
