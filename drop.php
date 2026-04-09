@@ -149,9 +149,19 @@ function generateSummary() {
     loading.style.display = 'flex';
     text.innerText = '';
 
-    fetch('/api/generate_summary.php?id=<?= $drop['id'] ?>')
-        .then(res => res.json())
-        .then(data => {
+    fetch('https://ddrop.net/api/generate_summary.php?id=<?= $drop['id'] ?>')
+        .then(res => res.text()) 
+        .then(raw => {
+            
+            raw = raw.replace(/^\uFEFF/, '');
+
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch (e) {
+                throw new Error("Neplatný JSON: " + raw);
+            }
+
             loading.style.display = 'none';
             btn.disabled = false;
 
@@ -160,7 +170,7 @@ function generateSummary() {
                 return;
             }
 
-            text.innerText = data.summary;
+            text.innerText = data.summary || 'Žádný výstup';
         })
         .catch(err => {
             loading.style.display = 'none';
