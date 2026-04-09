@@ -1,11 +1,45 @@
-﻿<?php
-require_once __DIR__ . '/../config/db.php';
+<?php
+session_start();
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
-$stmt = $pdo->prepare("SELECT * FROM drops WHERE id = ?");
-$stmt->execute([$id]);
-$drop = $stmt->fetch(PDO::FETCH_ASSOC);
+if ($id <= 0) {
+    die("Neplatné ID");
+}
+
+// 🔥 načtení jednoho dropu z API
+$url = "https://ddrop.net/api/drops.php?id=" . $id;
+
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_TIMEOUT => 10,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
+    CURLOPT_USERAGENT => 'Mozilla/5.0'
+]);
+
+$response = curl_exec($ch);
+
+if ($response === false) {
+    die("CURL ERROR: " . curl_error($ch));
+}
+
+curl_close($ch);
+
+
+$response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
+
+
+$data = json_decode($response, true);
+
+if (!is_array($data)) {
+    die("JSON ERROR: " . json_last_error_msg());
+}
+
+
+$drop = isset($data[0]) ? $data[0] : $data;
 
 if (!$drop) {
     die('Drop nebyl nalezen.');
@@ -21,37 +55,16 @@ if (!$drop) {
     <link rel="shortcut icon" href="/assets/img/logo.ico">
 
     <style>
-        .ai-box {
-            margin-top: 22px;
-        }
-
-        .ai-loading {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            margin-top: 10px;
-        }
-
-        .ai-dot {
-            width: 8px;
-            height: 8px;
-            background: white;
-            border-radius: 50%;
-            animation: bounce 1.2s infinite;
-        }
-
+        .ai-box { margin-top: 22px; }
+        .ai-loading { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+        .ai-dot { width: 8px; height: 8px; background: white; border-radius: 50%; animation: bounce 1.2s infinite; }
         .ai-dot:nth-child(2) { animation-delay: 0.2s; }
         .ai-dot:nth-child(3) { animation-delay: 0.4s; }
-
         @keyframes bounce {
             0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
             40% { transform: scale(1); opacity: 1; }
         }
-
-        .ai-text {
-            margin-top: 10px;
-            white-space: pre-line;
-        }
+        .ai-text { margin-top: 10px; white-space: pre-line; }
     </style>
 </head>
 <body>
@@ -95,7 +108,6 @@ if (!$drop) {
             <p><?= nl2br(htmlspecialchars($drop['description'])) ?></p>
         <?php endif; ?>
 
-        <!-- AI BOX -->
         <div class="info-card ai-box">
             <h2>AI shrnutí</h2>
 
