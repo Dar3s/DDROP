@@ -1,7 +1,5 @@
-﻿<!DOCTYPE html>
 <?php
 session_start();
-require_once __DIR__ . '/../config/db.php';
 
 if (!isset($_SESSION['user'])) {
     header('Location: login.php');
@@ -10,18 +8,42 @@ if (!isset($_SESSION['user'])) {
 
 $user = $_SESSION['user'];
 
-$stmt = $pdo->query("SELECT COUNT(*) FROM drops");
-$dropCount = (int) $stmt->fetchColumn();
+$url = "https://ddrop.net/api/account_stats.php?user_id=" . $user['id'];
 
-$watchCount = 0;
-try {
-    $stmt = $pdo->prepare("SELECT COUNT(*) FROM price_watchlist WHERE discord_user_id = ?");
-    $stmt->execute([(string) $user['id']]);
-    $watchCount = (int) $stmt->fetchColumn();
-} catch (Throwable $e) {
-    $watchCount = 0;
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_TIMEOUT => 10,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
+    CURLOPT_USERAGENT => 'Mozilla/5.0'
+]);
+
+$response = curl_exec($ch);
+
+if ($response === false) {
+    die("CURL ERROR: " . curl_error($ch));
 }
+
+curl_close($ch);
+
+
+$response = trim($response);
+$response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
+$response = ltrim($response, "\xEF\xBB\xBF");
+
+$data = json_decode($response, true);
+
+if (!is_array($data)) {
+    die("JSON ERROR: " . json_last_error_msg());
+}
+
+// fallback když API něco nedá
+$dropCount = $data['dropCount'] ?? 0;
+$watchCount = $data['watchCount'] ?? 0;
 ?>
+<!DOCTYPE html>
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
@@ -63,7 +85,7 @@ try {
     <section class="account-page">
         <div class="account-card">
             <h1>Vítej, <?= htmlspecialchars($user['username']) ?></h1>
-            <p>Tohle je základ tvého DDrop profilu. Odtud můžeš později spravovat oblíbené dropy, watchlisty a marketplace nabídky.</p>
+            <p>Tohle je základ tvého DDrop profilu.</p>
 
             <div class="account-grid account-grid-compact">
                 <div class="stat-box stat-box-wide">
@@ -82,11 +104,9 @@ try {
             <h2>Další logické funkce</h2>
             <ul class="account-list">
                 <li>Oblíbené dropy navázané na účet</li>
-                <li>Historie price alertů a změn cen</li>
-                <li>Nastavení preferencí: značka, cena, resale</li>
-                <li>Napojení Discord ID na web účet</li>
-                <li>Marketplace dashboard: aktivní prodeje a zájemci</li>
-                <li>Souhrn dostupných dropů v databázi: <strong><?= $dropCount ?></strong></li>
+                <li>Historie price alertů</li>
+                <li>Marketplace dashboard</li>
+                <li>Souhrn dropů: <strong><?= $dropCount ?></strong></li>
             </ul>
         </div>
     </section>
