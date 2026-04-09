@@ -1,19 +1,33 @@
 <?php
 session_start();
 
-$ch = curl_init("https://ddrop.net/api/drops.php");
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$url = "https://ddrop.net/api/drops.php";
+
+// CURL INIT
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_TIMEOUT => 10,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
+    CURLOPT_USERAGENT => 'Mozilla/5.0'
+]);
+
 $response = curl_exec($ch);
-curl_close($ch);
 
 if ($response === false) {
-    die("API ERROR");
+    die("CURL ERROR: " . curl_error($ch));
 }
 
+curl_close($ch);
+
+// JSON decode
 $drops = json_decode($response, true);
 
+// DEBUG pokud failne
 if (!is_array($drops)) {
-    die("INVALID API RESPONSE");
+    die("JSON ERROR: " . json_last_error_msg() . "<br><br>RAW:<br>" . htmlspecialchars($response));
 }
 
 $isLoggedIn = isset($_SESSION['user']);
@@ -84,7 +98,7 @@ $username = $isLoggedIn ? $_SESSION['user']['username'] : null;
                 <p><strong>Datum:</strong> <?= htmlspecialchars($drop['release_date']) ?></p>
                 <p><strong>Retail:</strong> <?= htmlspecialchars($drop['retail_price']) ?> <?= htmlspecialchars($drop['currency']) ?></p>
 
-                <a class="btn" href="drop.php?id=<?= (int) $drop['id'] ?>">Detail</a>
+                <a class="btn" href="drop.php?id=<?= (int)$drop['id'] ?>">Detail</a>
             </div>
         <?php endforeach; ?>
     </div>
