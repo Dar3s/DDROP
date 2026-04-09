@@ -3,7 +3,7 @@ session_start();
 
 $url = "https://ddrop.net/api/drops.php";
 
-// CURL INIT
+// CURL
 $ch = curl_init($url);
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
@@ -22,12 +22,15 @@ if ($response === false) {
 
 curl_close($ch);
 
+// 🔥 FIX BOM (hlavní problém)
+$response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
+
 // JSON decode
 $drops = json_decode($response, true);
 
-// DEBUG pokud failne
+// kontrola
 if (!is_array($drops)) {
-    die("JSON ERROR: " . json_last_error_msg() . "<br><br>RAW:<br>" . htmlspecialchars($response));
+    die("JSON ERROR: " . json_last_error_msg());
 }
 
 $isLoggedIn = isset($_SESSION['user']);
@@ -104,4 +107,4 @@ $username = $isLoggedIn ? $_SESSION['user']['username'] : null;
     </div>
 </body>
 </html>
-```
+
