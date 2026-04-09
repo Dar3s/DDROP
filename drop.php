@@ -7,7 +7,7 @@ if ($id <= 0) {
     die("Neplatné ID");
 }
 
-// 🔥 načtení jednoho dropu z API
+
 $url = "https://ddrop.net/api/drops.php?id=" . $id;
 
 $ch = curl_init($url);
