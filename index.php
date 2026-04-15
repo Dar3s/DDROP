@@ -1,37 +1,9 @@
 <?php
 session_start();
+require_once __DIR__ . '/config/db.php';
 
-$url = "https://ddrop.net/api/drops.php";
-
-// CURL
-$ch = curl_init($url);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_TIMEOUT => 10,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_SSL_VERIFYHOST => false,
-    CURLOPT_USERAGENT => 'Mozilla/5.0'
-]);
-
-$response = curl_exec($ch);
-
-if ($response === false) {
-    die("CURL ERROR: " . curl_error($ch));
-}
-
-curl_close($ch);
-
-// 🔥 FIX BOM (hlavní problém)
-$response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
-
-// JSON decode
-$drops = json_decode($response, true);
-
-// kontrola
-if (!is_array($drops)) {
-    die("JSON ERROR: " . json_last_error_msg());
-}
+$stmt = $pdo->query("SELECT * FROM drops ORDER BY release_date ASC");
+$drops = $stmt->fetchAll();
 
 $isLoggedIn = isset($_SESSION['user']);
 $username = $isLoggedIn ? $_SESSION['user']['username'] : null;
@@ -97,9 +69,9 @@ $username = $isLoggedIn ? $_SESSION['user']['username'] : null;
 
                 <h2><?= htmlspecialchars($drop['title']) ?></h2>
 
-                <p><strong>Značka:</strong> <?= htmlspecialchars($drop['brand']) ?></p>
-                <p><strong>Datum:</strong> <?= htmlspecialchars($drop['release_date']) ?></p>
-                <p><strong>Retail:</strong> <?= htmlspecialchars($drop['retail_price']) ?> <?= htmlspecialchars($drop['currency']) ?></p>
+                <p><strong>Značka:</strong> <?= htmlspecialchars($drop['brand'] ?? 'Neuvedeno') ?></p>
+                <p><strong>Datum:</strong> <?= htmlspecialchars($drop['release_date'] ?? 'Neuvedeno') ?></p>
+                <p><strong>Retail:</strong> <?= htmlspecialchars($drop['retail_price']) ?> <?= htmlspecialchars($drop['currency'] ?? 'EUR') ?></p>
 
                 <a class="btn" href="drop.php?id=<?= (int)$drop['id'] ?>">Detail</a>
             </div>
@@ -107,4 +79,3 @@ $username = $isLoggedIn ? $_SESSION['user']['username'] : null;
     </div>
 </body>
 </html>
-
