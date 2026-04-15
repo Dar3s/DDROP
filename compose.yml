@@ -1,9 +1,6 @@
 services:
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ddrop_web
+    build: .
     ports:
       - "8080:80"
     environment:
@@ -14,11 +11,9 @@ services:
       DB_PASS: ddrop_password
     depends_on:
       - db
-    restart: unless-stopped
 
   db:
     image: mariadb:11.4
-    container_name: ddrop_db
     environment:
       MARIADB_ROOT_PASSWORD: rootpassword
       MARIADB_DATABASE: dropshipping_app
@@ -26,9 +21,3 @@ services:
       MARIADB_PASSWORD: ddrop_password
     ports:
       - "3307:3306"
-    volumes:
-      - db_data:/var/lib/mysql
-    restart: unless-stopped
-
-volumes:
-  db_data:
