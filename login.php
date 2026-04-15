@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/config/db.php';
 
 if (isset($_SESSION['user'])) {
     header('Location: account.php');
@@ -9,48 +10,30 @@ if (isset($_SESSION['user'])) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
 
-    $ch = curl_init("https://ddrop.net/api/login.php");
-
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => http_build_query([
-            'email' => $_POST['email'],
-            'password' => $_POST['password']
-        ]),
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-        CURLOPT_USERAGENT => 'Mozilla/5.0'
-    ]);
-
-    $response = curl_exec($ch);
-
-    if ($response === false) {
-        die("CURL ERROR: " . curl_error($ch));
-    }
-
-    curl_close($ch);
-
-
-    $response = trim($response);
-    $response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
-    $response = ltrim($response, "\xEF\xBB\xBF");
-
-
-
-    $data = json_decode($response, true);
-
-    if (!is_array($data)) {
-        die("JSON ERROR: " . json_last_error_msg() . "<br><br>RAW:<br>" . htmlspecialchars($response));
-    }
-
-    if (!empty($data['error'])) {
-        $error = $data['error'];
+    if ($email === '' || $password === '') {
+        $error = 'Vyplň prosím email i heslo.';
     } else {
-        $_SESSION['user'] = $data['user'];
-        header('Location: account.php');
-        exit;
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ? LIMIT 1");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        if (!$user) {
+            $error = 'Uživatel neexistuje.';
+        } elseif (!password_verify($password, $user['password_hash'])) {
+            $error = 'Špatné heslo.';
+        } else {
+            $_SESSION['user'] = [
+                'id' => $user['id'],
+                'username' => $user['username'],
+                'email' => $user['email']
+            ];
+
+            header('Location: account.php');
+            exit;
+        }
     }
 }
 ?>
