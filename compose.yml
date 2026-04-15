@@ -14,8 +14,6 @@ services:
       DB_PASS: ddrop_password
     depends_on:
       - db
-    volumes:
-      - .:/var/www/html
     restart: unless-stopped
 
   db:
