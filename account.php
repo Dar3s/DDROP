@@ -1,5 +1,6 @@
 <?php
 session_start();
+require_once __DIR__ . '/config/db.php';
 
 if (!isset($_SESSION['user'])) {
     header('Location: login.php');
@@ -8,40 +9,18 @@ if (!isset($_SESSION['user'])) {
 
 $user = $_SESSION['user'];
 
-$url = "https://ddrop.net/api/account_stats.php?user_id=" . $user['id'];
+$dropCountStmt = $pdo->query("SELECT COUNT(*) AS count FROM drops");
+$dropCount = (int)$dropCountStmt->fetchColumn();
 
-$ch = curl_init($url);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_FOLLOWLOCATION => true,
-    CURLOPT_TIMEOUT => 10,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_SSL_VERIFYHOST => false,
-    CURLOPT_USERAGENT => 'Mozilla/5.0'
-]);
+$watchCount = 0;
 
-$response = curl_exec($ch);
-
-if ($response === false) {
-    die("CURL ERROR: " . curl_error($ch));
+try {
+    $watchStmt = $pdo->prepare("SELECT COUNT(*) FROM price_watchlist WHERE discord_user_id = ?");
+    $watchStmt->execute([(string)$user['id']]);
+    $watchCount = (int)$watchStmt->fetchColumn();
+} catch (Throwable $e) {
+    $watchCount = 0;
 }
-
-curl_close($ch);
-
-
-$response = trim($response);
-$response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
-$response = ltrim($response, "\xEF\xBB\xBF");
-
-$data = json_decode($response, true);
-
-if (!is_array($data)) {
-    die("JSON ERROR: " . json_last_error_msg());
-}
-
-// fallback když API něco nedá
-$dropCount = $data['dropCount'] ?? 0;
-$watchCount = $data['watchCount'] ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="cs">
