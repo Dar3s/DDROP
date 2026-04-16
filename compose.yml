@@ -20,11 +20,3 @@ services:
       POSTGRES_DB: dropshipping_app
       POSTGRES_USER: ddrop_user
       POSTGRES_PASSWORD: ddrop_password
-    ports:
-      - "5433:5432"
-    volumes:
-      - pg_data:/var/lib/postgresql/data
-      - ./dropshipping_app_postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
-
-volumes:
-  pg_data:
