@@ -11,6 +11,11 @@ services:
       DB_NAME: dropshipping_app
       DB_USER: ddrop_user
       DB_PASS: ddrop_password
+      OLD_DB_HOST: tvoje-stara-db-host
+      OLD_DB_PORT: 3306
+      OLD_DB_NAME: dropshipping_app
+      OLD_DB_USER: tvuj_stary_user
+      OLD_DB_PASS: tvoje_stare_heslo
     depends_on:
       - db
 
