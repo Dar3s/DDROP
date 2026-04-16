@@ -1,11 +1,13 @@
 services:
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8080:80"
     environment:
       DB_HOST: db
-      DB_PORT: 3306
+      DB_PORT: 5432
       DB_NAME: dropshipping_app
       DB_USER: ddrop_user
       DB_PASS: ddrop_password
@@ -13,11 +15,16 @@ services:
       - db
 
   db:
-    image: mariadb:11.4
+    image: postgres:16
     environment:
-      MARIADB_ROOT_PASSWORD: rootpassword
-      MARIADB_DATABASE: dropshipping_app
-      MARIADB_USER: ddrop_user
-      MARIADB_PASSWORD: ddrop_password
+      POSTGRES_DB: dropshipping_app
+      POSTGRES_USER: ddrop_user
+      POSTGRES_PASSWORD: ddrop_password
     ports:
-      - "3307:3306"
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./dropshipping_app_postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  pg_data:
