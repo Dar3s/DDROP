@@ -16,55 +16,55 @@ if (!is_array($data)) {
     die("API nevrátilo validní JSON.\n");
 }
 
-foreach ($data as $drop) {
-    $stmt = $pdo->prepare("
-        INSERT INTO drops (
-            id,
-            title,
-            brand,
-            model,
-            sku,
-            colorway,
-            release_date,
-            retail_price,
-            currency,
-            store_name,
-            store_link,
-            description,
-            image_url,
-            ai_summary
-        ) VALUES (
-            :id,
-            :title,
-            :brand,
-            :model,
-            :sku,
-            :colorway,
-            :release_date,
-            :retail_price,
-            :currency,
-            :store_name,
-            :store_link,
-            :description,
-            :image_url,
-            :ai_summary
-        )
-        ON DUPLICATE KEY UPDATE
-            title = VALUES(title),
-            brand = VALUES(brand),
-            model = VALUES(model),
-            sku = VALUES(sku),
-            colorway = VALUES(colorway),
-            release_date = VALUES(release_date),
-            retail_price = VALUES(retail_price),
-            currency = VALUES(currency),
-            store_name = VALUES(store_name),
-            store_link = VALUES(store_link),
-            description = VALUES(description),
-            image_url = VALUES(image_url),
-            ai_summary = VALUES(ai_summary)
-    ");
+$stmt = $pdo->prepare("
+    INSERT INTO drops (
+        id,
+        title,
+        brand,
+        model,
+        sku,
+        colorway,
+        release_date,
+        retail_price,
+        currency,
+        store_name,
+        store_link,
+        description,
+        image_url,
+        ai_summary
+    ) VALUES (
+        :id,
+        :title,
+        :brand,
+        :model,
+        :sku,
+        :colorway,
+        :release_date,
+        :retail_price,
+        :currency,
+        :store_name,
+        :store_link,
+        :description,
+        :image_url,
+        :ai_summary
+    )
+    ON CONFLICT (id) DO UPDATE SET
+        title = EXCLUDED.title,
+        brand = EXCLUDED.brand,
+        model = EXCLUDED.model,
+        sku = EXCLUDED.sku,
+        colorway = EXCLUDED.colorway,
+        release_date = EXCLUDED.release_date,
+        retail_price = EXCLUDED.retail_price,
+        currency = EXCLUDED.currency,
+        store_name = EXCLUDED.store_name,
+        store_link = EXCLUDED.store_link,
+        description = EXCLUDED.description,
+        image_url = EXCLUDED.image_url,
+        ai_summary = EXCLUDED.ai_summary
+");
 
+foreach ($data as $drop) {
     $stmt->execute([
         ':id' => $drop['id'] ?? null,
         ':title' => $drop['title'] ?? null,
