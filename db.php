@@ -3,8 +3,12 @@
 $host = getenv('DB_HOST') ?: 'db';
 $port = getenv('DB_PORT') ?: '5432';
 $dbname = getenv('DB_NAME') ?: 'dropshipping_app';
-$user = getenv('DB_USER') ?: 'ddrop_user';
-$pass = getenv('DB_PASS') ?: 'ddrop_password';
+$user = getenv('DB_USER');
+$pass = getenv('DB_PASS');
+
+if (!$user || !$pass) {
+    die('Database credentials are missing.');
+}
 
 try {
     $pdo = new PDO(
@@ -91,7 +95,7 @@ function ddrop_seed_database(PDO $pdo): void
             'status' => 'upcoming',
             'created_at' => '2026-03-25 22:40:08',
             'updated_at' => '2026-04-08 22:49:42',
-            'ai_summary' => 'Nike Dunk Low Panda je populární model z řady Dunk Low s klasickou černo-bílou kombinací. Působí jako bezpečný mainstream pick pro běžné nošení i sledování zájmu po releasu. Nejde o extrémně odvážný kus, ale díky známému vzhledu může být pro řadu lidí zajímavý.'
+            'ai_summary' => 'AI shrnutí zatím není dostupné v této veřejné verzi projektu.'
         ],
         [
             'id' => 2,
@@ -110,7 +114,7 @@ function ddrop_seed_database(PDO $pdo): void
             'status' => 'upcoming',
             'created_at' => '2026-03-25 22:40:08',
             'updated_at' => '2026-03-25 22:44:28',
-            'ai_summary' => 'Air Jordan 1 Retro High OG působí jako silnější a výraznější release než běžné mainstream modely. Díky známé siluetě a tradičně vysokému zájmu o Jordan 1 může být zajímavý jak pro fanoušky značky, tak pro sledování resale potenciálu. Zároveň ale bude hodně záležet na reálné poptávce po vydání.'
+            'ai_summary' => 'AI shrnutí zatím není dostupné v této veřejné verzi projektu.'
         ],
     ];
 
@@ -135,55 +139,6 @@ function ddrop_seed_database(PDO $pdo): void
             ':ai_summary' => $row['ai_summary'],
         ]);
     }
-}
-
-function ddrop_fetch_ai_summary(int $dropId): ?string
-{
-    $url = 'https://ddrop.net/api/generate_summary.php?id=' . $dropId;
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_HTTPHEADER => [
-            'Accept: text/plain,application/json;q=0.9,*/*;q=0.8'
-        ],
-    ]);
-
-    $response = curl_exec($ch);
-
-    if ($response === false) {
-        error_log('AI summary request failed: ' . curl_error($ch));
-        curl_close($ch);
-        return null;
-    }
-
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode < 200 || $httpCode >= 300) {
-        error_log('AI summary HTTP error: ' . $httpCode);
-        return null;
-    }
-
-    $trimmed = trim($response);
-    if ($trimmed === '') {
-        return null;
-    }
-
-    $decoded = json_decode($trimmed, true);
-    if (is_array($decoded)) {
-        if (!empty($decoded['summary'])) {
-            return trim((string)$decoded['summary']);
-        }
-        if (!empty($decoded['response'])) {
-            return trim((string)$decoded['response']);
-        }
-    }
-
-    return $trimmed;
 }
 
 ddrop_init_database($pdo);
