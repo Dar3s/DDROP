@@ -11,6 +11,7 @@ services:
       DB_NAME: dropshipping_app
       DB_USER: ddrop_user
       DB_PASS: ddrop_password
+      REMOTE_AI_SUMMARY_URL: https://ddrop.net/api/generate_summary.php
     depends_on:
       - db
 
