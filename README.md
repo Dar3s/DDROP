@@ -56,7 +56,3 @@ Cílem projektu je vytvořit funkční systém pro správu a sledování produkt
 ## Poznámka
 
 Tato veřejná verze repozitáře neobsahuje žádné privátní API klíče, hesla, tokeny ani neveřejné endpointy.
-
-## Autor
-
-Daniel Zoubek
