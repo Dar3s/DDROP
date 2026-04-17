@@ -2,10 +2,81 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
+function ddrop_fetch_ai_summary_from_remote(int $id): ?string
+{
+    $baseUrl = getenv('REMOTE_AI_SUMMARY_URL') ?: '';
+
+    if ($baseUrl === '' || $baseUrl === '__SET_THIS_ON_SERVER__') {
+        return null;
+    }
+
+    $url = rtrim($baseUrl, '?&');
+
+    if (str_contains($url, '?')) {
+        $url .= '&id=' . $id;
+    } else {
+        $url .= '?id=' . $id;
+    }
+
+    $context = stream_context_create([
+        'http' => [
+            'timeout' => 30,
+            'ignore_errors' => true,
+            'header' => "User-Agent: DDrop-App\r\n"
+        ]
+    ]);
+
+    $response = @file_get_contents($url, false, $context);
+
+    if ($response === false) {
+        return null;
+    }
+
+    $response = trim($response);
+
+    if ($response === '') {
+        return null;
+    }
+
+    $json = json_decode($response, true);
+
+    if (is_array($json)) {
+        if (!empty($json['summary']) && is_string($json['summary'])) {
+            return trim($json['summary']);
+        }
+
+        if (!empty($json['response']) && is_string($json['response'])) {
+            return trim($json['response']);
+        }
+
+        if (!empty($json['text']) && is_string($json['text'])) {
+            return trim($json['text']);
+        }
+    }
+
+    return $response;
+}
+
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
 if ($id <= 0) {
     die("Neplatné ID");
+}
+
+if (isset($_GET['generate_ai']) && (int)$_GET['generate_ai'] === 1) {
+    $summary = ddrop_fetch_ai_summary_from_remote($id);
+
+    if ($summary !== null && $summary !== '') {
+        $update = $pdo->prepare("
+            UPDATE drops
+            SET ai_summary = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ");
+        $update->execute([$summary, $id]);
+    }
+
+    header('Location: drop.php?id=' . $id);
+    exit;
 }
 
 $stmt = $pdo->prepare("SELECT * FROM drops WHERE id = ? LIMIT 1");
@@ -66,7 +137,17 @@ if (!$drop) {
 
             <div class="info-card" style="margin-top: 22px;">
                 <h2>AI shrnutí</h2>
-                <p><?= !empty($drop['ai_summary']) ? nl2br(htmlspecialchars($drop['ai_summary'])) : 'AI shrnutí není v této veřejné verzi aktivní.' ?></p>
+                <p>
+                    <?= !empty($drop['ai_summary'])
+                        ? nl2br(htmlspecialchars($drop['ai_summary']))
+                        : 'Zatím nebylo vygenerováno.' ?>
+                </p>
+
+                <div style="margin-top: 18px;">
+                    <a class="btn" href="drop.php?id=<?= (int)$drop['id'] ?>&generate_ai=1">
+                        Vygenerovat AI shrnutí
+                    </a>
+                </div>
             </div>
 
             <div class="drop-actions">
