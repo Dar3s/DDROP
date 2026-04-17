@@ -8,18 +8,6 @@ if ($id <= 0) {
     die("Neplatné ID");
 }
 
-if (isset($_GET['generate_ai']) && $_GET['generate_ai'] === '1') {
-    $summary = ddrop_fetch_ai_summary($id);
-
-    if ($summary !== null) {
-        $update = $pdo->prepare("UPDATE drops SET ai_summary = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-        $update->execute([$summary, $id]);
-    }
-
-    header('Location: drop.php?id=' . $id);
-    exit;
-}
-
 $stmt = $pdo->prepare("SELECT * FROM drops WHERE id = ? LIMIT 1");
 $stmt->execute([$id]);
 $drop = $stmt->fetch();
@@ -78,13 +66,7 @@ if (!$drop) {
 
             <div class="info-card" style="margin-top: 22px;">
                 <h2>AI shrnutí</h2>
-                <p><?= !empty($drop['ai_summary']) ? nl2br(htmlspecialchars($drop['ai_summary'])) : 'Zatím nebylo vygenerováno.' ?></p>
-
-                <div style="margin-top: 18px;">
-                    <a class="btn" href="drop.php?id=<?= (int)$drop['id'] ?>&generate_ai=1">
-                        Vygenerovat AI shrnutí
-                    </a>
-                </div>
+                <p><?= !empty($drop['ai_summary']) ? nl2br(htmlspecialchars($drop['ai_summary'])) : 'AI shrnutí není v této veřejné verzi aktivní.' ?></p>
             </div>
 
             <div class="drop-actions">
