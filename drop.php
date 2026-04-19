@@ -2,81 +2,136 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
-function ddrop_fetch_ai_summary_from_remote(int $id): ?string
+function ddrop_fetch_ai_summary_from_remote(int $id): array
 {
-    $baseUrl = getenv('REMOTE_AI_SUMMARY_URL') ?: '';
-
-    if ($baseUrl === '' || $baseUrl === '__SET_THIS_ON_SERVER__') {
-        return null;
-    }
-
-    $url = rtrim($baseUrl, '?&');
-
-    if (str_contains($url, '?')) {
-        $url .= '&id=' . $id;
-    } else {
-        $url .= '?id=' . $id;
-    }
+    $url = 'https://ddrop.net/api/generate_summary.php?id=' . $id . '&t=' . time();
 
     $context = stream_context_create([
         'http' => [
-            'timeout' => 30,
+            'timeout' => 45,
             'ignore_errors' => true,
-            'header' => "User-Agent: DDrop-App\r\n"
+            'header' => "User-Agent: DDrop-App\r\nCache-Control: no-cache\r\nPragma: no-cache\r\n"
         ]
     ]);
 
     $response = @file_get_contents($url, false, $context);
 
     if ($response === false) {
-        return null;
+        return [
+            'success' => false,
+            'summary' => null,
+            'error' => 'Nepodařilo se kontaktovat AI endpoint.'
+        ];
     }
 
     $response = trim($response);
 
     if ($response === '') {
-        return null;
+        return [
+            'success' => false,
+            'summary' => null,
+            'error' => 'AI endpoint vrátil prázdnou odpověď.'
+        ];
     }
 
     $json = json_decode($response, true);
 
     if (is_array($json)) {
         if (!empty($json['summary']) && is_string($json['summary'])) {
-            return trim($json['summary']);
+            return [
+                'success' => true,
+                'summary' => trim($json['summary']),
+                'error' => null
+            ];
         }
 
         if (!empty($json['response']) && is_string($json['response'])) {
-            return trim($json['response']);
+            return [
+                'success' => true,
+                'summary' => trim($json['response']),
+                'error' => null
+            ];
         }
 
         if (!empty($json['text']) && is_string($json['text'])) {
-            return trim($json['text']);
+            return [
+                'success' => true,
+                'summary' => trim($json['text']),
+                'error' => null
+            ];
+        }
+
+        if (isset($json['success']) && $json['success'] === false) {
+            return [
+                'success' => false,
+                'summary' => null,
+                'error' => !empty($json['error']) ? (string)$json['error'] : 'AI endpoint vrátil chybu.'
+            ];
         }
     }
 
-    return $response;
+    return [
+        'success' => true,
+        'summary' => $response,
+        'error' => null
+    ];
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'generate_ai') {
+    header('Content-Type: application/json; charset=utf-8');
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+
+    if ($id <= 0) {
+        echo json_encode([
+            'success' => false,
+            'error' => 'Neplatné ID dropu.'
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM drops WHERE id = ? LIMIT 1");
+    $stmt->execute([$id]);
+    $drop = $stmt->fetch();
+
+    if (!$drop) {
+        echo json_encode([
+            'success' => false,
+            'error' => 'Drop nebyl nalezen.'
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $result = ddrop_fetch_ai_summary_from_remote($id);
+
+    if (!$result['success'] || empty($result['summary'])) {
+        echo json_encode([
+            'success' => false,
+            'error' => $result['error'] ?? 'Nepodařilo se vygenerovat AI shrnutí.'
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    $summary = trim($result['summary']);
+
+    $update = $pdo->prepare("
+        UPDATE drops
+        SET ai_summary = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ");
+    $update->execute([$summary, $id]);
+
+    echo json_encode([
+        'success' => true,
+        'summary' => $summary
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
 if ($id <= 0) {
     die("Neplatné ID");
-}
-
-if (isset($_GET['generate_ai']) && (int)$_GET['generate_ai'] === 1) {
-    $summary = ddrop_fetch_ai_summary_from_remote($id);
-
-    if ($summary !== null && $summary !== '') {
-        $update = $pdo->prepare("
-            UPDATE drops
-            SET ai_summary = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        ");
-        $update->execute([$summary, $id]);
-    }
-
-    header('Location: drop.php?id=' . $id);
-    exit;
 }
 
 $stmt = $pdo->prepare("SELECT * FROM drops WHERE id = ? LIMIT 1");
@@ -95,6 +150,60 @@ if (!$drop) {
     <title>Detail dropu | DDrop</title>
     <link rel="stylesheet" href="/assets/css/styla.css">
     <link rel="shortcut icon" href="/assets/img/logo.ico">
+    <style>
+        .ai-loading {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 24px;
+        }
+
+        .ai-loading-label {
+            opacity: 0.9;
+        }
+
+        .ai-loading-dots {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .ai-loading-dots span {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.9);
+            animation: aiDots 1.2s infinite ease-in-out;
+        }
+
+        .ai-loading-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .ai-loading-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes aiDots {
+            0%, 80%, 100% {
+                transform: scale(0.65);
+                opacity: 0.45;
+            }
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .btn[disabled] {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .ai-error {
+            color: #ffd7d7;
+        }
+    </style>
 </head>
 <body>
     <div class="glass-shards">
@@ -137,16 +246,17 @@ if (!$drop) {
 
             <div class="info-card" style="margin-top: 22px;">
                 <h2>AI shrnutí</h2>
-                <p>
+
+                <p id="ai-summary-text">
                     <?= !empty($drop['ai_summary'])
                         ? nl2br(htmlspecialchars($drop['ai_summary']))
                         : 'Zatím nebylo vygenerováno.' ?>
                 </p>
 
                 <div style="margin-top: 18px;">
-                    <a class="btn" href="drop.php?id=<?= (int)$drop['id'] ?>&generate_ai=1">
+                    <button class="btn" id="generate-ai-btn" data-drop-id="<?= (int)$drop['id'] ?>" type="button">
                         Vygenerovat AI shrnutí
-                    </a>
+                    </button>
                 </div>
             </div>
 
@@ -161,5 +271,56 @@ if (!$drop) {
             </div>
         </div>
     </div>
+
+    <script>
+        const aiButton = document.getElementById('generate-ai-btn');
+        const aiSummaryText = document.getElementById('ai-summary-text');
+
+        if (aiButton && aiSummaryText) {
+            aiButton.addEventListener('click', async () => {
+                const dropId = aiButton.getAttribute('data-drop-id');
+
+                aiButton.disabled = true;
+                aiButton.textContent = 'Generuji...';
+
+                aiSummaryText.innerHTML = `
+                    <span class="ai-loading">
+                        <span class="ai-loading-label">Generuji AI shrnutí</span>
+                        <span class="ai-loading-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </span>
+                    </span>
+                `;
+
+                try {
+                    const response = await fetch('drop.php?id=' + encodeURIComponent(dropId), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                        },
+                        body: new URLSearchParams({
+                            action: 'generate_ai',
+                            id: dropId
+                        }).toString()
+                    });
+
+                    const data = await response.json();
+
+                    if (!data.success) {
+                        aiSummaryText.innerHTML = '<span class="ai-error">' + (data.error || 'Nepodařilo se vygenerovat AI shrnutí.') + '</span>';
+                    } else {
+                        aiSummaryText.textContent = data.summary;
+                    }
+                } catch (error) {
+                    aiSummaryText.innerHTML = '<span class="ai-error">Došlo k chybě při generování AI shrnutí.</span>';
+                } finally {
+                    aiButton.disabled = false;
+                    aiButton.textContent = 'Vygenerovat AI shrnutí';
+                }
+            });
+        }
+    </script>
 </body>
 </html>
