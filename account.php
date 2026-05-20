@@ -93,7 +93,7 @@ $watchlistDrops = $stmt->fetchAll();
             <h2>Watchlist z databáze</h2>
 
             <?php if (!$watchlistDrops): ?>
-                <p>Watchlist je prázdný.</p>
+                <p>Watchlist je zatím prázdný. Přidání probíhá přes detail konkrétního dropu.</p>
             <?php else: ?>
                 <ul class="account-list">
                     <?php foreach ($watchlistDrops as $drop): ?>
