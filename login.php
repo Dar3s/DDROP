@@ -2,10 +2,37 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
+if (isset($_SESSION['user'])) {
+    header('Location: account.php');
+    exit;
+}
+
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $error = 'Přihlášení je zde zatím jen jako vizuální prototyp.';
+    $email = trim($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    if ($email === '' || $password === '') {
+        $error = 'Vyplň email i heslo.';
+    } else {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
+        $stmt->execute([':email' => $email]);
+        $user = $stmt->fetch();
+
+        if (!$user || !password_verify($password, $user['password_hash'])) {
+            $error = 'Neplatný email nebo heslo.';
+        } else {
+            $_SESSION['user'] = [
+                'id' => $user['id'],
+                'username' => $user['username'],
+                'email' => $user['email'],
+            ];
+
+            header('Location: account.php');
+            exit;
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -14,8 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Přihlášení | DDrop</title>
-    <link rel="icon" type="image/x-icon" href="assets/img/logo.ico">
-    <link rel="stylesheet" href="assets/css/styla.css">
+    <link rel="icon" type="image/x-icon" href="/assets/img/logo.ico">
+    <link rel="stylesheet" href="/assets/css/styla.css">
 </head>
 <body>
     <div class="glass-shards">
@@ -47,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <section class="auth-page">
         <div class="auth-card">
             <h1>Přihlášení</h1>
-            <p>Tato stránka je zatím pouze vizuální prototyp.</p>
+            <p>Demo účet je uložený v databázi.</p>
 
             <?php if ($error): ?>
                 <div class="alert alert-error"><?= htmlspecialchars($error) ?></div>
@@ -69,11 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
 
         <div class="info-card">
-            <h2>Prototyp</h2>
+            <h2>Databázová část</h2>
             <ul class="account-list">
-                <li>Přihlášení je zde jen pro vizuální ukázku</li>
-                <li>Hlavní důraz je na drops a AI shrnutí</li>
-                <li>Databáze běží na PostgreSQL</li>
+                <li>Login čte data z tabulky users</li>
+                <li>Heslo je ověřeno pomocí password_verify</li>
+                <li>Po přihlášení se uloží session</li>
             </ul>
         </div>
     </section>
