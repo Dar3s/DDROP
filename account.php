@@ -24,8 +24,6 @@ $stmt = $pdo->prepare("
         w.id AS watch_id,
         w.target_price,
         w.currency AS watch_currency,
-        w.created_at AS watch_created_at,
-        w.updated_at AS watch_updated_at,
         d.id AS drop_id,
         d.title,
         d.brand,
@@ -35,7 +33,7 @@ $stmt = $pdo->prepare("
     FROM watchlist w
     JOIN drops d ON d.id = w.drop_id
     WHERE w.user_id = :user_id
-    ORDER BY w.updated_at DESC
+    ORDER BY w.id DESC
 ");
 $stmt->execute([':user_id' => $user['id']]);
 $watchlistItems = $stmt->fetchAll();
@@ -50,7 +48,7 @@ $watchlistItems = $stmt->fetchAll();
     <link rel="stylesheet" href="/assets/css/styla.css">
     <style>
         .watch-item-meta {
-            opacity: 0.85;
+            opacity: 0.9;
             margin-top: 8px;
             line-height: 1.5;
         }
@@ -137,10 +135,6 @@ $watchlistItems = $stmt->fetchAll();
                                     <?= htmlspecialchars($item['target_price']) ?>
                                     <?= htmlspecialchars($item['watch_currency']) ?>
                                 </strong>
-                                <br>
-
-                                Poslední úprava:
-                                <?= htmlspecialchars($item['watch_updated_at']) ?>
                             </div>
 
                             <a class="watch-item-link" href="drop.php?id=<?= (int)$item['drop_id'] ?>">
