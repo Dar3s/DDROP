@@ -4,22 +4,36 @@ $host = getenv('DB_HOST') ?: 'db';
 $port = getenv('DB_PORT') ?: '5432';
 $dbname = getenv('DB_NAME') ?: 'dropshipping_app';
 $user = getenv('DB_USER') ?: 'ddrop_user';
-$pass = getenv('DB_PASS') ?: 'ddrop_demo_password';
+$pass = getenv('DB_PASS');
 
 $pdo = null;
 $lastError = null;
 
 for ($i = 0; $i < 10; $i++) {
     try {
-        $pdo = new PDO(
-            "pgsql:host={$host};port={$port};dbname={$dbname}",
-            $user,
-            $pass,
-            [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            ]
-        );
+        $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
+
+        if ($pass === false || $pass === '') {
+            $pdo = new PDO(
+                $dsn,
+                $user,
+                null,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ]
+            );
+        } else {
+            $pdo = new PDO(
+                $dsn,
+                $user,
+                $pass,
+                [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ]
+            );
+        }
 
         break;
     } catch (PDOException $e) {
@@ -98,10 +112,6 @@ function ddrop_init_database(PDO $pdo): void
         );
     ");
 
-    /*
-        Pokud už existovala starší verze watchlist tabulky bez target_price,
-        tyhle ALTERy ji bezpečně doplní.
-    */
     $pdo->exec("
         ALTER TABLE watchlist
         ADD COLUMN IF NOT EXISTS target_price NUMERIC(10,2);
@@ -264,11 +274,6 @@ function ddrop_seed_database(PDO $pdo): void
             ]);
         }
     }
-
-    /*
-        Watchlist se záměrně neseeduje.
-        Uživatel si musí cílovou cenu nastavit sám v detailu dropu.
-    */
 
     $pdo->exec("
         SELECT setval(
