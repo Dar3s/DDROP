@@ -22,6 +22,7 @@ function ddrop_build_ai_prompt(array $drop): string
 
 function ddrop_clean_ai_summary(string $summary): string
 {
+    $summary = preg_replace('/^\xEF\xBB\xBF/', '', $summary);
     $summary = trim($summary);
 
     $summary = preg_replace('/^#+\s*/u', '', $summary);
@@ -35,52 +36,84 @@ function ddrop_clean_ai_summary(string $summary): string
     return $summary;
 }
 
+function ddrop_extract_summary_from_response(string $response): ?string
+{
+    $response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
+    $response = trim($response);
+
+    if ($response === '') {
+        return null;
+    }
+
+    $json = json_decode($response, true);
+
+    if (is_array($json)) {
+        if (!empty($json['summary']) && is_string($json['summary'])) {
+            return ddrop_clean_ai_summary($json['summary']);
+        }
+
+        if (!empty($json['response']) && is_string($json['response'])) {
+            return ddrop_clean_ai_summary($json['response']);
+        }
+
+        if (!empty($json['text']) && is_string($json['text'])) {
+            return ddrop_clean_ai_summary($json['text']);
+        }
+
+        if (!empty($json['message']) && is_string($json['message'])) {
+            return ddrop_clean_ai_summary($json['message']);
+        }
+
+        if (isset($json['success'], $json['error']) && $json['success'] === false) {
+            return null;
+        }
+    }
+
+    return ddrop_clean_ai_summary($response);
+}
+
 function ddrop_generate_ai_summary(array $drop): array
 {
-    $baseUrl = rtrim((string)getenv('OPENAI_BASE_URL'), '/');
-    $apiKey = (string)getenv('OPENAI_API_KEY');
-    $model = (string)(getenv('OPENAI_MODEL') ?: 'gemma3:27b');
+    $endpoint = trim((string)getenv('AI_SUMMARY_ENDPOINT'));
 
-    if ($baseUrl === '' || $apiKey === '') {
+    if ($endpoint === '') {
         return [
             'success' => false,
             'summary' => null,
-            'error' => 'AI není nakonfigurovaná. Chybí OPENAI_BASE_URL nebo OPENAI_API_KEY.'
+            'error' => 'AI endpoint není nakonfigurovaný.'
         ];
     }
 
     $prompt = ddrop_build_ai_prompt($drop);
 
-    $payload = [
-        'model' => $model,
-        'messages' => [
-            [
-                'role' => 'system',
-                'content' => 'Jsi AI pomocník pro sneaker dropy. Odpovídej česky, přirozeně a realisticky. Nikdy nepoužívej markdown nadpisy, odrážky ani prefixy typu Shrnutí dropu.'
-            ],
-            [
-                'role' => 'user',
-                'content' => $prompt
-            ]
-        ],
-        'temperature' => 0.95,
-        'max_tokens' => 450
-    ];
+    $query = http_build_query([
+        'id' => (int)$drop['id'],
+        't' => time()
+    ]);
+
+    $url = $endpoint;
+
+    if (str_contains($url, '?')) {
+        $url .= '&' . $query;
+    } else {
+        $url .= '?' . $query;
+    }
 
     $context = stream_context_create([
         'http' => [
-            'method' => 'POST',
+            'method' => 'GET',
             'timeout' => 60,
             'ignore_errors' => true,
             'header' => implode("\r\n", [
-                'Content-Type: application/json',
-                'Authorization: Bearer ' . $apiKey,
+                'User-Agent: DDrop-School-Project',
+                'Accept: application/json, text/plain, */*',
+                'Cache-Control: no-cache',
+                'Pragma: no-cache',
             ]),
-            'content' => json_encode($payload, JSON_UNESCAPED_UNICODE),
         ]
     ]);
 
-    $response = @file_get_contents($baseUrl . '/chat/completions', false, $context);
+    $response = @file_get_contents($url, false, $context);
 
     if ($response === false) {
         return [
@@ -90,34 +123,22 @@ function ddrop_generate_ai_summary(array $drop): array
         ];
     }
 
-    $data = json_decode(trim($response), true);
+    $summary = ddrop_extract_summary_from_response($response);
 
-    if (!is_array($data)) {
+    if ($summary === null || $summary === '') {
         return [
             'success' => false,
             'summary' => null,
-            'error' => 'AI endpoint nevrátil validní JSON.'
+            'error' => 'AI endpoint nevrátil použitelnou odpověď.'
         ];
     }
-
-    $summary = $data['choices'][0]['message']['content'] ?? null;
-
-    if (!$summary) {
-        return [
-            'success' => false,
-            'summary' => null,
-            'error' => 'AI endpoint nevrátil text odpovědi.'
-        ];
-    }
-
-    $summary = ddrop_clean_ai_summary($summary);
 
     return [
         'success' => true,
         'summary' => $summary,
         'error' => null,
         'prompt' => $prompt,
-        'model' => $model
+        'model' => 'Gemma / Ollama remote endpoint'
     ];
 }
 
