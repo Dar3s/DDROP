@@ -10,13 +10,13 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: dropshipping_app
-      DB_USER: ddrop_user
-      DB_PASS: ddrop_demo_password
+      DB_NAME: ${DB_NAME:-dropshipping_app}
+      DB_USER: ${DB_USER:-ddrop_user}
+      DB_PASS: "${DB_PASS:-}"
 
-      OPENAI_BASE_URL: https://example.com/v1
-      OPENAI_API_KEY: demo_key
-      OPENAI_MODEL: gemma3:27b
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: ${OPENAI_MODEL:-gemma3:27b}
 
     depends_on:
       - db
@@ -27,8 +27,8 @@ services:
     image: postgres:16
 
     environment:
-      POSTGRES_DB: dropshipping_app
-      POSTGRES_USER: ddrop_user
-      POSTGRES_PASSWORD: ddrop_demo_password
+      POSTGRES_DB: ${DB_NAME:-dropshipping_app}
+      POSTGRES_USER: ${DB_USER:-ddrop_user}
+      POSTGRES_HOST_AUTH_METHOD: trust
 
     restart: unless-stopped
