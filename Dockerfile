@@ -8,10 +8,10 @@ RUN apt-get update && apt-get install -y \
 
 RUN a2enmod rewrite
 
-RUN echo "PidFile /tmp/apache2.pid" >> /etc/apache2/apache2.conf
 RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 COPY . /var/www/html/
-RUN chown -R www-data:www-data /var/www/html
+
+WORKDIR /var/www/html
 
 EXPOSE 80
