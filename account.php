@@ -20,14 +20,25 @@ $stmt->execute([':user_id' => $user['id']]);
 $watchCount = (int)$stmt->fetchColumn();
 
 $stmt = $pdo->prepare("
-    SELECT d.*
+    SELECT
+        w.id AS watch_id,
+        w.target_price,
+        w.currency AS watch_currency,
+        w.created_at AS watch_created_at,
+        w.updated_at AS watch_updated_at,
+        d.id AS drop_id,
+        d.title,
+        d.brand,
+        d.retail_price,
+        d.currency AS drop_currency,
+        d.release_date
     FROM watchlist w
     JOIN drops d ON d.id = w.drop_id
     WHERE w.user_id = :user_id
-    ORDER BY w.created_at DESC
+    ORDER BY w.updated_at DESC
 ");
 $stmt->execute([':user_id' => $user['id']]);
-$watchlistDrops = $stmt->fetchAll();
+$watchlistItems = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="cs">
@@ -37,6 +48,18 @@ $watchlistDrops = $stmt->fetchAll();
     <title>Můj účet | DDrop</title>
     <link rel="icon" type="image/x-icon" href="/assets/img/logo.ico">
     <link rel="stylesheet" href="/assets/css/styla.css">
+    <style>
+        .watch-item-meta {
+            opacity: 0.85;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+
+        .watch-item-link {
+            display: inline-block;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
     <div class="glass-shards">
@@ -83,21 +106,47 @@ $watchlistDrops = $stmt->fetchAll();
                 </div>
 
                 <div class="stat-box">
-                    <h3>Watchlist</h3>
+                    <h3>Price watch</h3>
                     <p class="stat-value-number"><?= $watchCount ?></p>
                 </div>
             </div>
         </div>
 
         <div class="info-card">
-            <h2>Watchlist z databáze</h2>
+            <h2>Price watchlist z databáze</h2>
 
-            <?php if (!$watchlistDrops): ?>
-                <p>Watchlist je zatím prázdný. Přidání probíhá přes detail konkrétního dropu.</p>
+            <?php if (!$watchlistItems): ?>
+                <p>
+                    Watchlist je zatím prázdný.
+                    Cílovou cenu nastavíš v detailu konkrétního dropu.
+                </p>
             <?php else: ?>
                 <ul class="account-list">
-                    <?php foreach ($watchlistDrops as $drop): ?>
-                        <li><?= htmlspecialchars($drop['title']) ?></li>
+                    <?php foreach ($watchlistItems as $item): ?>
+                        <li>
+                            <strong><?= htmlspecialchars($item['title']) ?></strong>
+
+                            <div class="watch-item-meta">
+                                Retail:
+                                <?= htmlspecialchars($item['retail_price']) ?>
+                                <?= htmlspecialchars($item['drop_currency']) ?>
+                                <br>
+
+                                Cílová cena:
+                                <strong>
+                                    <?= htmlspecialchars($item['target_price']) ?>
+                                    <?= htmlspecialchars($item['watch_currency']) ?>
+                                </strong>
+                                <br>
+
+                                Poslední úprava:
+                                <?= htmlspecialchars($item['watch_updated_at']) ?>
+                            </div>
+
+                            <a class="watch-item-link" href="drop.php?id=<?= (int)$item['drop_id'] ?>">
+                                Otevřít detail
+                            </a>
+                        </li>
                     <?php endforeach; ?>
                 </ul>
             <?php endif; ?>
