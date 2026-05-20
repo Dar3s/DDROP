@@ -243,31 +243,6 @@ function ddrop_seed_database(PDO $pdo): void
         }
     }
 
-    $watchCount = (int)$pdo->query("SELECT COUNT(*) FROM watchlist")->fetchColumn();
-
-    if ($watchCount === 0) {
-        $stmt = $pdo->prepare("
-            INSERT INTO watchlist (
-                user_id,
-                drop_id
-            ) VALUES (
-                :user_id,
-                :drop_id
-            )
-            ON CONFLICT (user_id, drop_id) DO NOTHING
-        ");
-
-        $stmt->execute([
-            ':user_id' => 1,
-            ':drop_id' => 1,
-        ]);
-
-        $stmt->execute([
-            ':user_id' => 1,
-            ':drop_id' => 2,
-        ]);
-    }
-
     $pdo->exec("
         SELECT setval(
             pg_get_serial_sequence('users', 'id'),
