@@ -1,5 +1,10 @@
 <?php
 session_start();
+
+if (!ob_get_level()) {
+    ob_start();
+}
+
 require_once __DIR__ . '/db.php';
 
 function ddrop_fetch_ai_summary_from_remote(int $id): array
@@ -24,6 +29,7 @@ function ddrop_fetch_ai_summary_from_remote(int $id): array
         ];
     }
 
+    $response = preg_replace('/^\xEF\xBB\xBF/', '', (string)$response);
     $response = trim($response);
 
     if ($response === '') {
@@ -78,6 +84,10 @@ function ddrop_fetch_ai_summary_from_remote(int $id): array
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'generate_ai') {
+    if (ob_get_length()) {
+        ob_clean();
+    }
+
     header('Content-Type: application/json; charset=utf-8');
 
     $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
@@ -131,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
 if ($id <= 0) {
-    die("Neplatné ID");
+    die('Neplatné ID');
 }
 
 $stmt = $pdo->prepare("SELECT * FROM drops WHERE id = ? LIMIT 1");
@@ -271,68 +281,68 @@ if (!$drop) {
             </div>
         </div>
     </div>
-<script>
-    const aiButton = document.getElementById('generate-ai-btn');
-    const aiSummaryText = document.getElementById('ai-summary-text');
 
-    if (aiButton && aiSummaryText) {
-        aiButton.addEventListener('click', async () => {
-            const dropId = aiButton.getAttribute('data-drop-id');
+    <script>
+        const aiButton = document.getElementById('generate-ai-btn');
+        const aiSummaryText = document.getElementById('ai-summary-text');
 
-            aiButton.disabled = true;
-            aiButton.textContent = 'Generuji...';
+        if (aiButton && aiSummaryText) {
+            aiButton.addEventListener('click', async () => {
+                const dropId = aiButton.getAttribute('data-drop-id');
 
-            aiSummaryText.innerHTML = `
-                <span class="ai-loading">
-                    <span class="ai-loading-label">Generuji AI shrnutí</span>
-                    <span class="ai-loading-dots">
-                        <span></span>
-                        <span></span>
-                        <span></span>
+                aiButton.disabled = true;
+                aiButton.textContent = 'Generuji...';
+
+                aiSummaryText.innerHTML = `
+                    <span class="ai-loading">
+                        <span class="ai-loading-label">Generuji AI shrnutí</span>
+                        <span class="ai-loading-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </span>
                     </span>
-                </span>
-            `;
-
-            try {
-                const response = await fetch('drop.php?id=' + encodeURIComponent(dropId), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-                    },
-                    body: new URLSearchParams({
-                        action: 'generate_ai',
-                        id: dropId
-                    }).toString()
-                });
-
-                let rawText = await response.text();
-
-                rawText = rawText.replace(/^\uFEFF/, '').trim();
-
-                let data = null;
+                `;
 
                 try {
-                    data = JSON.parse(rawText);
-                } catch (e) {
-                    data = {
-                        success: true,
-                        summary: rawText
-                    };
-                }
+                    const response = await fetch('drop.php?id=' + encodeURIComponent(dropId), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                        },
+                        body: new URLSearchParams({
+                            action: 'generate_ai',
+                            id: dropId
+                        }).toString()
+                    });
 
-                if (!data.success) {
-                    aiSummaryText.innerHTML = '<span class="ai-error">' + (data.error || 'Nepodařilo se vygenerovat AI shrnutí.') + '</span>';
-                } else {
-                    aiSummaryText.textContent = data.summary || 'AI endpoint vrátil prázdnou odpověď.';
+                    let rawText = await response.text();
+                    rawText = rawText.replace(/^\uFEFF/, '').trim();
+
+                    let data;
+
+                    try {
+                        data = JSON.parse(rawText);
+                    } catch (e) {
+                        data = {
+                            success: true,
+                            summary: rawText
+                        };
+                    }
+
+                    if (!data.success) {
+                        aiSummaryText.innerHTML = '<span class="ai-error">' + (data.error || 'Nepodařilo se vygenerovat AI shrnutí.') + '</span>';
+                    } else {
+                        aiSummaryText.textContent = data.summary || 'AI endpoint vrátil prázdnou odpověď.';
+                    }
+                } catch (error) {
+                    aiSummaryText.innerHTML = '<span class="ai-error">Došlo k chybě při generování AI shrnutí.</span>';
+                } finally {
+                    aiButton.disabled = false;
+                    aiButton.textContent = 'Vygenerovat AI shrnutí';
                 }
-            } catch (error) {
-                aiSummaryText.innerHTML = '<span class="ai-error">Došlo k chybě při generování AI shrnutí.</span>';
-            } finally {
-                aiButton.disabled = false;
-                aiButton.textContent = 'Vygenerovat AI shrnutí';
-            }
-        });
-    }
-</script>
+            });
+        }
+    </script>
 </body>
 </html>
