@@ -2,8 +2,32 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
-$dropCountStmt = $pdo->query("SELECT COUNT(*) AS count FROM drops");
-$dropCount = (int)$dropCountStmt->fetchColumn();
+if (!isset($_SESSION['user'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$user = $_SESSION['user'];
+
+$dropCount = (int)$pdo->query("SELECT COUNT(*) FROM drops")->fetchColumn();
+
+$stmt = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM watchlist
+    WHERE user_id = :user_id
+");
+$stmt->execute([':user_id' => $user['id']]);
+$watchCount = (int)$stmt->fetchColumn();
+
+$stmt = $pdo->prepare("
+    SELECT d.*
+    FROM watchlist w
+    JOIN drops d ON d.id = w.drop_id
+    WHERE w.user_id = :user_id
+    ORDER BY w.created_at DESC
+");
+$stmt->execute([':user_id' => $user['id']]);
+$watchlistDrops = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="cs">
@@ -11,8 +35,8 @@ $dropCount = (int)$dropCountStmt->fetchColumn();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Můj účet | DDrop</title>
-    <link rel="icon" type="image/x-icon" href="assets/img/logo.ico">
-    <link rel="stylesheet" href="assets/css/styla.css">
+    <link rel="icon" type="image/x-icon" href="/assets/img/logo.ico">
+    <link rel="stylesheet" href="/assets/css/styla.css">
 </head>
 <body>
     <div class="glass-shards">
@@ -44,30 +68,39 @@ $dropCount = (int)$dropCountStmt->fetchColumn();
 
     <section class="account-page">
         <div class="account-card">
-            <h1>Můj účet</h1>
-            <p>Tato stránka je zatím jen jako vizuální prototyp.</p>
+            <h1>Vítej, <?= htmlspecialchars($user['username']) ?></h1>
+            <p>Tato stránka ukazuje data načtená z PostgreSQL.</p>
 
             <div class="account-grid account-grid-compact">
                 <div class="stat-box stat-box-wide">
-                    <h3>Stav projektu</h3>
-                    <p class="stat-value-email">Prototyp aktivní</p>
+                    <h3>Email</h3>
+                    <p class="stat-value-email"><?= htmlspecialchars($user['email']) ?></p>
                 </div>
 
                 <div class="stat-box">
-                    <h3>Počet dropů</h3>
+                    <h3>Dropy</h3>
                     <p class="stat-value-number"><?= $dropCount ?></p>
+                </div>
+
+                <div class="stat-box">
+                    <h3>Watchlist</h3>
+                    <p class="stat-value-number"><?= $watchCount ?></p>
                 </div>
             </div>
         </div>
 
         <div class="info-card">
-            <h2>Další logické funkce</h2>
-            <ul class="account-list">
-                <li>Oblíbené dropy navázané na účet</li>
-                <li>Historie price alertů</li>
-                <li>Marketplace dashboard</li>
-                <li>AI shrnutí přes vzdálený server</li>
-            </ul>
+            <h2>Watchlist z databáze</h2>
+
+            <?php if (!$watchlistDrops): ?>
+                <p>Watchlist je prázdný.</p>
+            <?php else: ?>
+                <ul class="account-list">
+                    <?php foreach ($watchlistDrops as $drop): ?>
+                        <li><?= htmlspecialchars($drop['title']) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
         </div>
     </section>
 </body>
