@@ -2,24 +2,6 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
-function ddrop_build_ai_prompt(array $drop): string
-{
-    return "Napiš české shrnutí sneaker dropu. "
-        . "Napiš 4 až 6 vět. "
-        . "Piš pouze čistý text bez nadpisu, bez markdownu, bez odrážek a bez začátku typu 'Shrnutí dropu'. "
-        . "Zhodnoť design, cenu, značku, zajímavost pro běžného uživatele a opatrně i možný resale zájem. "
-        . "Neslibuj jistý zisk a nepiš přehnané marketingové fráze. "
-        . "Každé nové vygenerování napiš trochu jinak, jinou formulací a jiným pořadím myšlenek.\n\n"
-        . "Název: " . ($drop['title'] ?? 'Neuvedeno') . "\n"
-        . "Značka: " . ($drop['brand'] ?? 'Neuvedeno') . "\n"
-        . "Model: " . ($drop['model'] ?? 'Neuvedeno') . "\n"
-        . "SKU: " . ($drop['sku'] ?? 'Neuvedeno') . "\n"
-        . "Colorway: " . ($drop['colorway'] ?? 'Neuvedeno') . "\n"
-        . "Retail cena: " . ($drop['retail_price'] ?? 'Neuvedeno') . " " . ($drop['currency'] ?? '') . "\n"
-        . "Store: " . ($drop['store_name'] ?? 'Neuvedeno') . "\n"
-        . "Popis: " . ($drop['description'] ?? 'Bez popisu');
-}
-
 function ddrop_clean_ai_summary(string $summary): string
 {
     $summary = preg_replace('/^\xEF\xBB\xBF/', '', $summary);
@@ -36,6 +18,44 @@ function ddrop_clean_ai_summary(string $summary): string
     return $summary;
 }
 
+function ddrop_build_ai_prompt(array $drop): string
+{
+    return "Napiš české shrnutí sneaker dropu. "
+        . "Napiš 4 až 6 vět. "
+        . "Piš pouze čistý text bez nadpisu, bez markdownu, bez odrážek a bez začátku typu 'Shrnutí dropu'. "
+        . "Zhodnoť design, cenu, značku, zajímavost pro běžného uživatele a opatrně i možný resale zájem. "
+        . "Neslibuj jistý zisk a nepiš přehnané marketingové fráze.\n\n"
+        . "Název: " . ($drop['title'] ?? 'Neuvedeno') . "\n"
+        . "Značka: " . ($drop['brand'] ?? 'Neuvedeno') . "\n"
+        . "Model: " . ($drop['model'] ?? 'Neuvedeno') . "\n"
+        . "SKU: " . ($drop['sku'] ?? 'Neuvedeno') . "\n"
+        . "Colorway: " . ($drop['colorway'] ?? 'Neuvedeno') . "\n"
+        . "Retail cena: " . ($drop['retail_price'] ?? 'Neuvedeno') . " " . ($drop['currency'] ?? '') . "\n"
+        . "Store: " . ($drop['store_name'] ?? 'Neuvedeno') . "\n"
+        . "Popis: " . ($drop['description'] ?? 'Bez popisu');
+}
+
+function ddrop_extract_ai_summary(array $data): ?string
+{
+    $possibleKeys = [
+        'summary',
+        'response',
+        'text',
+        'message',
+        'content',
+        'result',
+        'output'
+    ];
+
+    foreach ($possibleKeys as $key) {
+        if (!empty($data[$key]) && is_string($data[$key])) {
+            return ddrop_clean_ai_summary($data[$key]);
+        }
+    }
+
+    return null;
+}
+
 function ddrop_generate_ai_summary(array $drop): array
 {
     $endpoint = trim((string)getenv('AI_SUMMARY_ENDPOINT'));
@@ -50,39 +70,29 @@ function ddrop_generate_ai_summary(array $drop): array
 
     $prompt = ddrop_build_ai_prompt($drop);
 
-    $payload = [
-        'prompt' => $prompt,
-        'drop' => [
-            'id' => (int)$drop['id'],
-            'title' => $drop['title'] ?? '',
-            'brand' => $drop['brand'] ?? '',
-            'model' => $drop['model'] ?? '',
-            'sku' => $drop['sku'] ?? '',
-            'colorway' => $drop['colorway'] ?? '',
-            'retail_price' => $drop['retail_price'] ?? '',
-            'currency' => $drop['currency'] ?? '',
-            'store_name' => $drop['store_name'] ?? '',
-            'description' => $drop['description'] ?? ''
-        ]
-    ];
+    $url = $endpoint;
+
+    if (str_contains($url, '?')) {
+        $url .= '&id=' . urlencode((string)$drop['id']) . '&t=' . time();
+    } else {
+        $url .= '?id=' . urlencode((string)$drop['id']) . '&t=' . time();
+    }
 
     $context = stream_context_create([
         'http' => [
-            'method' => 'POST',
-            'timeout' => 90,
+            'method' => 'GET',
+            'timeout' => 120,
             'ignore_errors' => true,
             'header' => implode("\r\n", [
-                'Content-Type: application/json',
-                'Accept: application/json',
+                'Accept: application/json, text/plain, */*',
                 'User-Agent: DDrop-School-Project',
                 'Cache-Control: no-cache',
                 'Pragma: no-cache',
             ]),
-            'content' => json_encode($payload, JSON_UNESCAPED_UNICODE),
         ]
     ]);
 
-    $response = @file_get_contents($endpoint, false, $context);
+    $response = @file_get_contents($url, false, $context);
 
     if ($response === false) {
         return [
@@ -93,6 +103,15 @@ function ddrop_generate_ai_summary(array $drop): array
     }
 
     $response = preg_replace('/^\xEF\xBB\xBF/', '', trim($response));
+
+    if ($response === '') {
+        return [
+            'success' => false,
+            'summary' => null,
+            'error' => 'AI endpoint vrátil prázdnou odpověď.'
+        ];
+    }
+
     $data = json_decode($response, true);
 
     if (!is_array($data)) {
@@ -100,6 +119,14 @@ function ddrop_generate_ai_summary(array $drop): array
             'success' => false,
             'summary' => null,
             'error' => 'AI endpoint nevrátil validní JSON. Odpověď: ' . mb_substr(strip_tags($response), 0, 300)
+        ];
+    }
+
+    if (!empty($data['error']) && is_string($data['error'])) {
+        return [
+            'success' => false,
+            'summary' => null,
+            'error' => 'Chyba z AI endpointu: ' . $data['error']
         ];
     }
 
@@ -111,22 +138,22 @@ function ddrop_generate_ai_summary(array $drop): array
         ];
     }
 
-    $summary = $data['summary'] ?? $data['response'] ?? $data['text'] ?? null;
+    $summary = ddrop_extract_ai_summary($data);
 
-    if (!is_string($summary) || trim($summary) === '') {
+    if ($summary === null || $summary === '') {
         return [
             'success' => false,
             'summary' => null,
-            'error' => 'AI endpoint nevrátil položku summary.'
+            'error' => 'AI endpoint nevrátil text shrnutí. Odpověď: ' . mb_substr(json_encode($data, JSON_UNESCAPED_UNICODE), 0, 300)
         ];
     }
 
     return [
         'success' => true,
-        'summary' => ddrop_clean_ai_summary($summary),
+        'summary' => $summary,
         'error' => null,
         'prompt' => $prompt,
-        'model' => $data['model'] ?? 'Gemma / Ollama remote endpoint'
+        'model' => 'Gemma / Ollama server endpoint'
     ];
 }
 
