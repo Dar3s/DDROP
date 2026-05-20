@@ -2,7 +2,12 @@
 session_start();
 require_once __DIR__ . '/db.php';
 
-$stmt = $pdo->query("SELECT * FROM drops ORDER BY release_date ASC");
+$stmt = $pdo->query("
+    SELECT *
+    FROM drops
+    ORDER BY release_date ASC
+");
+
 $drops = $stmt->fetchAll();
 
 $isLoggedIn = isset($_SESSION['user']);
@@ -13,8 +18,8 @@ $isLoggedIn = isset($_SESSION['user']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Upcoming Drops | DDrop</title>
-    <link rel="icon" type="image/x-icon" href="assets/img/logo.ico">
-    <link rel="stylesheet" href="assets/css/styla.css">
+    <link rel="icon" type="image/x-icon" href="/assets/img/logo.ico">
+    <link rel="stylesheet" href="/assets/css/styla.css">
 </head>
 <body>
     <div class="glass-shards">
@@ -39,6 +44,7 @@ $isLoggedIn = isset($_SESSION['user']);
         <div class="navbar-menu">
             <a class="nav-link active" href="index.php">Domů</a>
             <a class="nav-link" href="index.php#drops-section">Drops</a>
+
             <?php if ($isLoggedIn): ?>
                 <a class="nav-link" href="account.php">Můj účet</a>
                 <a class="nav-link" href="logout.php">Odhlásit</a>
@@ -63,6 +69,7 @@ $isLoggedIn = isset($_SESSION['user']);
                 >
 
                 <h2><?= htmlspecialchars($drop['title']) ?></h2>
+
                 <p><strong>Značka:</strong> <?= htmlspecialchars($drop['brand'] ?? 'Neuvedeno') ?></p>
                 <p><strong>Datum:</strong> <?= htmlspecialchars($drop['release_date'] ?? 'Neuvedeno') ?></p>
                 <p><strong>Retail:</strong> <?= htmlspecialchars($drop['retail_price']) ?> <?= htmlspecialchars($drop['currency'] ?? 'EUR') ?></p>
