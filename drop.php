@@ -166,49 +166,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_watchlist') {
-    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-    $userId = $_SESSION['user']['id'] ?? 1;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_watchlist') {
+    if (!isset($_SESSION['user'])) {
+        header('Location: login.php');
+        exit;
+    }
 
-    if ($id <= 0) {
-        header('Location: index.php');
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $targetPrice = isset($_POST['target_price']) ? (float)$_POST['target_price'] : 0;
+    $userId = (int)$_SESSION['user']['id'];
+
+    if ($id <= 0 || $targetPrice <= 0) {
+        header('Location: drop.php?id=' . $id);
         exit;
     }
 
     $stmt = $pdo->prepare("
-        SELECT id
-        FROM watchlist
-        WHERE user_id = :user_id
-          AND drop_id = :drop_id
+        SELECT currency
+        FROM drops
+        WHERE id = :id
         LIMIT 1
+    ");
+
+    $stmt->execute([
+        ':id' => $id,
+    ]);
+
+    $dropCurrency = $stmt->fetchColumn() ?: 'EUR';
+
+    $stmt = $pdo->prepare("
+        INSERT INTO watchlist (
+            user_id,
+            drop_id,
+            target_price,
+            currency,
+            updated_at
+        ) VALUES (
+            :user_id,
+            :drop_id,
+            :target_price,
+            :currency,
+            CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (user_id, drop_id)
+        DO UPDATE SET
+            target_price = EXCLUDED.target_price,
+            currency = EXCLUDED.currency,
+            updated_at = CURRENT_TIMESTAMP
     ");
 
     $stmt->execute([
         ':user_id' => $userId,
         ':drop_id' => $id,
+        ':target_price' => $targetPrice,
+        ':currency' => $dropCurrency,
     ]);
 
-    $existing = $stmt->fetch();
+    header('Location: drop.php?id=' . $id);
+    exit;
+}
 
-    if ($existing) {
-        $delete = $pdo->prepare("
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'remove_watchlist') {
+    if (!isset($_SESSION['user'])) {
+        header('Location: login.php');
+        exit;
+    }
+
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $userId = (int)$_SESSION['user']['id'];
+
+    if ($id > 0) {
+        $stmt = $pdo->prepare("
             DELETE FROM watchlist
             WHERE user_id = :user_id
               AND drop_id = :drop_id
         ");
 
-        $delete->execute([
-            ':user_id' => $userId,
-            ':drop_id' => $id,
-        ]);
-    } else {
-        $insert = $pdo->prepare("
-            INSERT INTO watchlist (user_id, drop_id)
-            VALUES (:user_id, :drop_id)
-            ON CONFLICT (user_id, drop_id) DO NOTHING
-        ");
-
-        $insert->execute([
+        $stmt->execute([
             ':user_id' => $userId,
             ':drop_id' => $id,
         ]);
@@ -232,22 +266,27 @@ if (!$drop) {
     die('Drop nebyl nalezen.');
 }
 
-$userId = $_SESSION['user']['id'] ?? 1;
+$isLoggedIn = isset($_SESSION['user']);
+$watchlistItem = null;
 
-$stmt = $pdo->prepare("
-    SELECT id
-    FROM watchlist
-    WHERE user_id = :user_id
-      AND drop_id = :drop_id
-    LIMIT 1
-");
+if ($isLoggedIn) {
+    $userId = (int)$_SESSION['user']['id'];
 
-$stmt->execute([
-    ':user_id' => $userId,
-    ':drop_id' => $drop['id'],
-]);
+    $stmt = $pdo->prepare("
+        SELECT *
+        FROM watchlist
+        WHERE user_id = :user_id
+          AND drop_id = :drop_id
+        LIMIT 1
+    ");
 
-$isInWatchlist = (bool)$stmt->fetch();
+    $stmt->execute([
+        ':user_id' => $userId,
+        ':drop_id' => $drop['id'],
+    ]);
+
+    $watchlistItem = $stmt->fetch();
+}
 ?>
 <!DOCTYPE html>
 <html lang="cs">
@@ -316,6 +355,46 @@ $isInWatchlist = (bool)$stmt->fetch();
             border: 1px solid rgba(255,255,255,0.13);
             line-height: 1.55;
         }
+
+        .watch-form {
+            margin-top: 22px;
+            padding: 18px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.13);
+        }
+
+        .watch-form-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .watch-input {
+            min-width: 180px;
+            padding: 13px 15px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(0,0,0,0.18);
+            color: #fff;
+            outline: none;
+        }
+
+        .watch-input::placeholder {
+            color: rgba(255,255,255,0.65);
+        }
+
+        .watch-current {
+            margin-top: 12px;
+            opacity: 0.9;
+        }
+
+        .login-hint {
+            margin-top: 20px;
+            opacity: 0.85;
+        }
     </style>
 </head>
 <body>
@@ -357,14 +436,60 @@ $isInWatchlist = (bool)$stmt->fetch();
                 <p><?= nl2br(htmlspecialchars($drop['description'])) ?></p>
             <?php endif; ?>
 
-            <form method="POST" style="margin-top: 20px;">
-                <input type="hidden" name="action" value="toggle_watchlist">
-                <input type="hidden" name="id" value="<?= (int)$drop['id'] ?>">
+            <?php if ($isLoggedIn): ?>
+                <div class="watch-form">
+                    <h2>Sledování cílové ceny</h2>
+                    <p>
+                        Nastav si cenu, při které by tě v reálném rozšíření mohl upozornit price tracking bot.
+                    </p>
 
-                <button class="btn btn-outline" type="submit">
-                    <?= $isInWatchlist ? 'Odebrat z watchlistu' : 'Přidat do watchlistu' ?>
-                </button>
-            </form>
+                    <?php if ($watchlistItem): ?>
+                        <p class="watch-current">
+                            Aktuálně sleduješ cílovou cenu:
+                            <strong>
+                                <?= htmlspecialchars($watchlistItem['target_price']) ?>
+                                <?= htmlspecialchars($watchlistItem['currency']) ?>
+                            </strong>
+                        </p>
+                    <?php endif; ?>
+
+                    <form method="POST" class="watch-form-row">
+                        <input type="hidden" name="action" value="save_watchlist">
+                        <input type="hidden" name="id" value="<?= (int)$drop['id'] ?>">
+
+                        <input
+                            class="watch-input"
+                            type="number"
+                            step="0.01"
+                            min="1"
+                            name="target_price"
+                            placeholder="Cílová cena"
+                            value="<?= $watchlistItem ? htmlspecialchars($watchlistItem['target_price']) : '' ?>"
+                            required
+                        >
+
+                        <button class="btn" type="submit">
+                            Uložit do watchlistu
+                        </button>
+                    </form>
+
+                    <?php if ($watchlistItem): ?>
+                        <form method="POST" style="margin-top: 12px;">
+                            <input type="hidden" name="action" value="remove_watchlist">
+                            <input type="hidden" name="id" value="<?= (int)$drop['id'] ?>">
+
+                            <button class="btn btn-outline" type="submit">
+                                Odebrat z watchlistu
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            <?php else: ?>
+                <p class="login-hint">
+                    Pro nastavení cílové ceny se nejdřív přihlas.
+                    <a href="login.php">Přihlášení</a>
+                </p>
+            <?php endif; ?>
 
             <div class="info-card" style="margin-top: 22px;">
                 <h2>AI shrnutí</h2>
