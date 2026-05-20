@@ -8,8 +8,7 @@ $pass = getenv('DB_PASS');
 
 $pdo = null;
 $lastError = null;
-
-for ($i = 0; $i < 10; $i++) {
+for ($i = 0; $i < 45; $i++) {
     try {
         $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
 
