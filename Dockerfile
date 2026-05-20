@@ -1,5 +1,7 @@
 FROM php:8.2-apache
 
+ENV APACHE_PID_FILE=/tmp/apache2.pid
+
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     && docker-php-ext-install pdo_pgsql pgsql \
@@ -9,6 +11,7 @@ RUN apt-get update && apt-get install -y \
 RUN a2enmod rewrite
 
 RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
+RUN echo "PidFile /tmp/apache2.pid" >> /etc/apache2/apache2.conf
 
 COPY . /var/www/html/
 
