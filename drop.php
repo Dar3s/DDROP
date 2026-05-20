@@ -36,42 +36,6 @@ function ddrop_clean_ai_summary(string $summary): string
     return $summary;
 }
 
-function ddrop_extract_summary_from_response(string $response): ?string
-{
-    $response = preg_replace('/^\xEF\xBB\xBF/', '', $response);
-    $response = trim($response);
-
-    if ($response === '') {
-        return null;
-    }
-
-    $json = json_decode($response, true);
-
-    if (is_array($json)) {
-        if (!empty($json['summary']) && is_string($json['summary'])) {
-            return ddrop_clean_ai_summary($json['summary']);
-        }
-
-        if (!empty($json['response']) && is_string($json['response'])) {
-            return ddrop_clean_ai_summary($json['response']);
-        }
-
-        if (!empty($json['text']) && is_string($json['text'])) {
-            return ddrop_clean_ai_summary($json['text']);
-        }
-
-        if (!empty($json['message']) && is_string($json['message'])) {
-            return ddrop_clean_ai_summary($json['message']);
-        }
-
-        if (isset($json['success'], $json['error']) && $json['success'] === false) {
-            return null;
-        }
-    }
-
-    return ddrop_clean_ai_summary($response);
-}
-
 function ddrop_generate_ai_summary(array $drop): array
 {
     $endpoint = trim((string)getenv('AI_SUMMARY_ENDPOINT'));
@@ -86,34 +50,39 @@ function ddrop_generate_ai_summary(array $drop): array
 
     $prompt = ddrop_build_ai_prompt($drop);
 
-    $query = http_build_query([
-        'id' => (int)$drop['id'],
-        't' => time()
-    ]);
-
-    $url = $endpoint;
-
-    if (str_contains($url, '?')) {
-        $url .= '&' . $query;
-    } else {
-        $url .= '?' . $query;
-    }
+    $payload = [
+        'prompt' => $prompt,
+        'drop' => [
+            'id' => (int)$drop['id'],
+            'title' => $drop['title'] ?? '',
+            'brand' => $drop['brand'] ?? '',
+            'model' => $drop['model'] ?? '',
+            'sku' => $drop['sku'] ?? '',
+            'colorway' => $drop['colorway'] ?? '',
+            'retail_price' => $drop['retail_price'] ?? '',
+            'currency' => $drop['currency'] ?? '',
+            'store_name' => $drop['store_name'] ?? '',
+            'description' => $drop['description'] ?? ''
+        ]
+    ];
 
     $context = stream_context_create([
         'http' => [
-            'method' => 'GET',
-            'timeout' => 60,
+            'method' => 'POST',
+            'timeout' => 90,
             'ignore_errors' => true,
             'header' => implode("\r\n", [
+                'Content-Type: application/json',
+                'Accept: application/json',
                 'User-Agent: DDrop-School-Project',
-                'Accept: application/json, text/plain, */*',
                 'Cache-Control: no-cache',
                 'Pragma: no-cache',
             ]),
+            'content' => json_encode($payload, JSON_UNESCAPED_UNICODE),
         ]
     ]);
 
-    $response = @file_get_contents($url, false, $context);
+    $response = @file_get_contents($endpoint, false, $context);
 
     if ($response === false) {
         return [
@@ -123,22 +92,41 @@ function ddrop_generate_ai_summary(array $drop): array
         ];
     }
 
-    $summary = ddrop_extract_summary_from_response($response);
+    $response = preg_replace('/^\xEF\xBB\xBF/', '', trim($response));
+    $data = json_decode($response, true);
 
-    if ($summary === null || $summary === '') {
+    if (!is_array($data)) {
         return [
             'success' => false,
             'summary' => null,
-            'error' => 'AI endpoint nevrátil použitelnou odpověď.'
+            'error' => 'AI endpoint nevrátil validní JSON. Odpověď: ' . mb_substr(strip_tags($response), 0, 300)
+        ];
+    }
+
+    if (isset($data['success']) && $data['success'] === false) {
+        return [
+            'success' => false,
+            'summary' => null,
+            'error' => $data['error'] ?? 'AI endpoint vrátil chybu.'
+        ];
+    }
+
+    $summary = $data['summary'] ?? $data['response'] ?? $data['text'] ?? null;
+
+    if (!is_string($summary) || trim($summary) === '') {
+        return [
+            'success' => false,
+            'summary' => null,
+            'error' => 'AI endpoint nevrátil položku summary.'
         ];
     }
 
     return [
         'success' => true,
-        'summary' => $summary,
+        'summary' => ddrop_clean_ai_summary($summary),
         'error' => null,
         'prompt' => $prompt,
-        'model' => 'Gemma / Ollama remote endpoint'
+        'model' => $data['model'] ?? 'Gemma / Ollama remote endpoint'
     ];
 }
 
