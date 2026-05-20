@@ -2,7 +2,7 @@
 
 DDrop je webová aplikace zaměřená na sledování produktových dropů, hlavně sneaker releasů. Uživatel může procházet dostupné dropy, zobrazit detail konkrétního produktu, nastavit cílovou cenu pro sledování a pracovat s daty uloženými v PostgreSQL databázi.
 
-Tento repozitář obsahuje školní verzi projektu. Školní verze je zjednodušená tak, aby šla jednoduše spustit přes Docker Compose a aby ukazovala hlavní části projektu: webovou aplikaci, PostgreSQL databázi, přihlášení, price watchlist a AI shrnutí.
+Tento repozitář obsahuje školní verzi projektu. Školní verze je zjednodušená tak, aby šla spustit přes Docker Compose a aby ukazovala hlavní části projektu: webovou aplikaci, PostgreSQL databázi, přihlášení, price watchlist a AI shrnutí.
 
 Vedle této školní verze existuje i širší hlavní DDrop projekt, který mám rozpracovaný na vlastním serveru. Ten obsahuje další funkce, například Discord bota, pokročilejší price tracking a napojení na externí služby. Tyto části nejsou přímo součástí tohoto odevzdaného školního repozitáře.
 
@@ -17,7 +17,7 @@ Vedle této školní verze existuje i širší hlavní DDrop projekt, který má
 - přihlášení pomocí demo účtu uloženého v databázi
 - uložení cílové ceny do price watchlistu
 - zobrazení price watchlistu v uživatelském účtu
-- AI shrnutí dropu přes OpenAI-compatible API konfiguraci
+- AI shrnutí dropu přes vzdálený endpoint napojený na Gemma/Ollama
 - ukládání historie AI generování do databáze
 - PostgreSQL databázi
 - Docker Compose konfiguraci
@@ -37,6 +37,7 @@ Vedle této školní verze existuje i širší hlavní DDrop projekt, který má
 - Docker
 - Docker Compose
 - PDO
+- Gemma/Ollama přes vzdálený AI endpoint
 
 ---
 
