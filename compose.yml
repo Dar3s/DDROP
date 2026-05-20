@@ -1,30 +1,23 @@
 services:
   web:
-    build: .
-    container_name: ddrop_web
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8080:80"
     environment:
       DB_HOST: db
       DB_PORT: 5432
-      DB_NAME: ddrop
+      DB_NAME: dropshipping_app
       DB_USER: ddrop_user
-      DB_PASS: example_password
+      DB_PASS: ddrop_password
+      REMOTE_AI_SUMMARY_URL: https://ddrop.net/api/generate_summary.php
     depends_on:
       - db
-    restart: unless-stopped
 
   db:
     image: postgres:16
-    container_name: ddrop_db
     environment:
-      POSTGRES_DB: ddrop
+      POSTGRES_DB: dropshipping_app
       POSTGRES_USER: ddrop_user
-      POSTGRES_PASSWORD: example_password
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
+      POSTGRES_PASSWORD: ddrop_password
