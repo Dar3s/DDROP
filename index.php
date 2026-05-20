@@ -1,11 +1,8 @@
 <?php
-session_start();
-require_once __DIR__ . '/db.php';
+require 'db.php';
 
 $stmt = $pdo->query("SELECT * FROM drops ORDER BY release_date ASC");
-$drops = $stmt->fetchAll();
-
-$isLoggedIn = isset($_SESSION['user']);
+$drops = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="cs">
