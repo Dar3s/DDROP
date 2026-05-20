@@ -6,8 +6,10 @@ function ddrop_build_ai_prompt(array $drop): string
 {
     return "Napiš české shrnutí sneaker dropu. "
         . "Napiš 4 až 6 vět. "
+        . "Piš pouze čistý text bez nadpisu, bez markdownu, bez odrážek a bez začátku typu 'Shrnutí dropu'. "
         . "Zhodnoť design, cenu, značku, zajímavost pro běžného uživatele a opatrně i možný resale zájem. "
-        . "Neslibuj jistý zisk a nepiš přehnané marketingové fráze.\n\n"
+        . "Neslibuj jistý zisk a nepiš přehnané marketingové fráze. "
+        . "Každé nové vygenerování napiš trochu jinak, jinou formulací a jiným pořadím myšlenek.\n\n"
         . "Název: " . ($drop['title'] ?? 'Neuvedeno') . "\n"
         . "Značka: " . ($drop['brand'] ?? 'Neuvedeno') . "\n"
         . "Model: " . ($drop['model'] ?? 'Neuvedeno') . "\n"
@@ -16,6 +18,21 @@ function ddrop_build_ai_prompt(array $drop): string
         . "Retail cena: " . ($drop['retail_price'] ?? 'Neuvedeno') . " " . ($drop['currency'] ?? '') . "\n"
         . "Store: " . ($drop['store_name'] ?? 'Neuvedeno') . "\n"
         . "Popis: " . ($drop['description'] ?? 'Bez popisu');
+}
+
+function ddrop_clean_ai_summary(string $summary): string
+{
+    $summary = trim($summary);
+
+    $summary = preg_replace('/^#+\s*/u', '', $summary);
+    $summary = preg_replace('/^Shrnutí\s+dropu\s*:\s*/iu', '', $summary);
+    $summary = preg_replace('/^AI\s+shrnutí\s*:\s*/iu', '', $summary);
+    $summary = preg_replace('/^Shrnutí\s*:\s*/iu', '', $summary);
+
+    $summary = trim($summary);
+    $summary = preg_replace('/\s+/', ' ', $summary);
+
+    return $summary;
 }
 
 function ddrop_generate_ai_summary(array $drop): array
@@ -39,15 +56,15 @@ function ddrop_generate_ai_summary(array $drop): array
         'messages' => [
             [
                 'role' => 'system',
-                'content' => 'Jsi AI pomocník pro sneaker dropy. Odpovídej česky, přirozeně a realisticky.'
+                'content' => 'Jsi AI pomocník pro sneaker dropy. Odpovídej česky, přirozeně a realisticky. Nikdy nepoužívej markdown nadpisy, odrážky ani prefixy typu Shrnutí dropu.'
             ],
             [
                 'role' => 'user',
                 'content' => $prompt
             ]
         ],
-        'temperature' => 0.8,
-        'max_tokens' => 420
+        'temperature' => 0.95,
+        'max_tokens' => 450
     ];
 
     $context = stream_context_create([
@@ -93,9 +110,11 @@ function ddrop_generate_ai_summary(array $drop): array
         ];
     }
 
+    $summary = ddrop_clean_ai_summary($summary);
+
     return [
         'success' => true,
-        'summary' => trim($summary),
+        'summary' => $summary,
         'error' => null,
         'prompt' => $prompt,
         'model' => $model
@@ -128,11 +147,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
         exit;
     }
 
-    /*
-        AI odpověď se záměrně neukládá do drops.ai_summary.
-        Po refreshi stránky tedy zmizí.
-        Do ai_generations se ukládá pouze historie generování jako důkaz zápisu do DB.
-    */
     $insertGeneration = $pdo->prepare("
         INSERT INTO ai_generations (drop_id, prompt, response, model)
         VALUES (:drop_id, :prompt, :response, :model)
@@ -300,6 +314,7 @@ $isInWatchlist = (bool)$stmt->fetch();
             border-radius: 18px;
             background: rgba(255,255,255,0.08);
             border: 1px solid rgba(255,255,255,0.13);
+            line-height: 1.55;
         }
     </style>
 </head>
@@ -380,18 +395,23 @@ $isInWatchlist = (bool)$stmt->fetch();
     <script>
         const aiButton = document.getElementById('generate-ai-btn');
         const aiSummaryList = document.getElementById('ai-summary-list');
-        const aiEmptyText = document.getElementById('ai-empty-text');
+
+        function removeEmptyText() {
+            const emptyText = document.getElementById('ai-empty-text');
+
+            if (emptyText) {
+                emptyText.remove();
+            }
+        }
 
         function addAiResponse(text) {
-            if (aiEmptyText) {
-                aiEmptyText.remove();
-            }
+            removeEmptyText();
 
             const item = document.createElement('div');
             item.className = 'ai-response-item';
             item.textContent = text;
 
-            aiSummaryList.prepend(item);
+            aiSummaryList.appendChild(item);
         }
 
         if (aiButton && aiSummaryList) {
@@ -400,6 +420,8 @@ $isInWatchlist = (bool)$stmt->fetch();
 
                 aiButton.disabled = true;
                 aiButton.textContent = 'Generuji...';
+
+                removeEmptyText();
 
                 const loadingItem = document.createElement('div');
                 loadingItem.className = 'ai-response-item';
@@ -412,11 +434,7 @@ $isInWatchlist = (bool)$stmt->fetch();
                     </span>
                 `;
 
-                if (aiEmptyText) {
-                    aiEmptyText.remove();
-                }
-
-                aiSummaryList.prepend(loadingItem);
+                aiSummaryList.appendChild(loadingItem);
 
                 try {
                     const response = await fetch('drop.php?id=' + encodeURIComponent(dropId), {
