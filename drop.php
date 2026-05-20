@@ -392,8 +392,42 @@ if ($isLoggedIn) {
         }
 
         .login-hint {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
             margin-top: 20px;
-            opacity: 0.85;
+            opacity: 0.95;
+        }
+
+        .inline-login-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: fit-content;
+            padding: 12px 18px;
+            border-radius: 14px;
+            color: #ffffff;
+            font-weight: 800;
+            text-decoration: none;
+            background: linear-gradient(135deg, rgba(126, 79, 255, 0.78), rgba(82, 48, 166, 0.72));
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow:
+                0 12px 28px rgba(45, 20, 120, 0.34),
+                inset 0 1px 0 rgba(255, 255, 255, 0.18);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+
+        .inline-login-btn:hover {
+            transform: translateY(-2px);
+            color: #ffffff;
+            text-decoration: none;
+            background: linear-gradient(135deg, rgba(145, 98, 255, 0.9), rgba(95, 55, 190, 0.82));
+            box-shadow:
+                0 16px 36px rgba(80, 40, 180, 0.44),
+                inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
     </style>
 </head>
@@ -486,8 +520,8 @@ if ($isLoggedIn) {
                 </div>
             <?php else: ?>
                 <p class="login-hint">
-                    Pro nastavení cílové ceny se nejdřív přihlas.
-                    <a href="login.php">Přihlášení</a>
+                    <span>Pro nastavení cílové ceny se nejdřív přihlas.</span>
+                    <a class="inline-login-btn" href="login.php">Přihlášení</a>
                 </p>
             <?php endif; ?>
 
