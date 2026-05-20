@@ -4,8 +4,10 @@ require_once __DIR__ . '/db.php';
 
 function ddrop_build_ai_prompt(array $drop): string
 {
-    return "Napiš krátké české shrnutí sneaker dropu maximálně ve 3 větách. "
-        . "Nepiš jistý zisk, jen opatrně zhodnoť, jestli je drop zajímavý pro sledování nebo osobní koupi.\n\n"
+    return "Napiš české shrnutí sneaker dropu. "
+        . "Napiš 4 až 6 vět. "
+        . "Zhodnoť design, cenu, značku, zajímavost pro běžného uživatele a opatrně i možný resale zájem. "
+        . "Neslibuj jistý zisk a nepiš přehnané marketingové fráze.\n\n"
         . "Název: " . ($drop['title'] ?? 'Neuvedeno') . "\n"
         . "Značka: " . ($drop['brand'] ?? 'Neuvedeno') . "\n"
         . "Model: " . ($drop['model'] ?? 'Neuvedeno') . "\n"
@@ -37,15 +39,15 @@ function ddrop_generate_ai_summary(array $drop): array
         'messages' => [
             [
                 'role' => 'system',
-                'content' => 'Jsi AI pomocník pro sneaker dropy. Odpovídej česky, stručně a realisticky.'
+                'content' => 'Jsi AI pomocník pro sneaker dropy. Odpovídej česky, přirozeně a realisticky.'
             ],
             [
                 'role' => 'user',
                 'content' => $prompt
             ]
         ],
-        'temperature' => 0.5,
-        'max_tokens' => 220
+        'temperature' => 0.8,
+        'max_tokens' => 420
     ];
 
     $context = stream_context_create([
@@ -126,18 +128,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
         exit;
     }
 
-    $update = $pdo->prepare("
-        UPDATE drops
-        SET ai_summary = :summary,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = :id
-    ");
-
-    $update->execute([
-        ':summary' => $result['summary'],
-        ':id' => $id,
-    ]);
-
+    /*
+        AI odpověď se záměrně neukládá do drops.ai_summary.
+        Po refreshi stránky tedy zmizí.
+        Do ai_generations se ukládá pouze historie generování jako důkaz zápisu do DB.
+    */
     $insertGeneration = $pdo->prepare("
         INSERT INTO ai_generations (drop_id, prompt, response, model)
         VALUES (:drop_id, :prompt, :response, :model)
@@ -157,6 +152,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gener
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'toggle_watchlist') {
+    $id = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+    $userId = $_SESSION['user']['id'] ?? 1;
+
+    if ($id <= 0) {
+        header('Location: index.php');
+        exit;
+    }
+
+    $stmt = $pdo->prepare("
+        SELECT id
+        FROM watchlist
+        WHERE user_id = :user_id
+          AND drop_id = :drop_id
+        LIMIT 1
+    ");
+
+    $stmt->execute([
+        ':user_id' => $userId,
+        ':drop_id' => $id,
+    ]);
+
+    $existing = $stmt->fetch();
+
+    if ($existing) {
+        $delete = $pdo->prepare("
+            DELETE FROM watchlist
+            WHERE user_id = :user_id
+              AND drop_id = :drop_id
+        ");
+
+        $delete->execute([
+            ':user_id' => $userId,
+            ':drop_id' => $id,
+        ]);
+    } else {
+        $insert = $pdo->prepare("
+            INSERT INTO watchlist (user_id, drop_id)
+            VALUES (:user_id, :drop_id)
+            ON CONFLICT (user_id, drop_id) DO NOTHING
+        ");
+
+        $insert->execute([
+            ':user_id' => $userId,
+            ':drop_id' => $id,
+        ]);
+    }
+
+    header('Location: drop.php?id=' . $id);
+    exit;
+}
+
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($id <= 0) {
@@ -170,6 +217,23 @@ $drop = $stmt->fetch();
 if (!$drop) {
     die('Drop nebyl nalezen.');
 }
+
+$userId = $_SESSION['user']['id'] ?? 1;
+
+$stmt = $pdo->prepare("
+    SELECT id
+    FROM watchlist
+    WHERE user_id = :user_id
+      AND drop_id = :drop_id
+    LIMIT 1
+");
+
+$stmt->execute([
+    ':user_id' => $userId,
+    ':drop_id' => $drop['id'],
+]);
+
+$isInWatchlist = (bool)$stmt->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="cs">
@@ -224,6 +288,19 @@ if (!$drop) {
             opacity: 0.7;
             pointer-events: none;
         }
+
+        .ai-response-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .ai-response-item {
+            padding: 16px;
+            border-radius: 18px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.13);
+        }
     </style>
 </head>
 <body>
@@ -265,14 +342,21 @@ if (!$drop) {
                 <p><?= nl2br(htmlspecialchars($drop['description'])) ?></p>
             <?php endif; ?>
 
+            <form method="POST" style="margin-top: 20px;">
+                <input type="hidden" name="action" value="toggle_watchlist">
+                <input type="hidden" name="id" value="<?= (int)$drop['id'] ?>">
+
+                <button class="btn btn-outline" type="submit">
+                    <?= $isInWatchlist ? 'Odebrat z watchlistu' : 'Přidat do watchlistu' ?>
+                </button>
+            </form>
+
             <div class="info-card" style="margin-top: 22px;">
                 <h2>AI shrnutí</h2>
 
-                <p id="ai-summary-text">
-                    <?= !empty($drop['ai_summary'])
-                        ? nl2br(htmlspecialchars($drop['ai_summary']))
-                        : 'Zatím nebylo vygenerováno.' ?>
-                </p>
+                <div id="ai-summary-list" class="ai-response-list">
+                    <p id="ai-empty-text">Zatím nebylo vygenerováno.</p>
+                </div>
 
                 <div style="margin-top: 18px;">
                     <button class="btn" id="generate-ai-btn" data-drop-id="<?= (int)$drop['id'] ?>" type="button">
@@ -295,16 +379,31 @@ if (!$drop) {
 
     <script>
         const aiButton = document.getElementById('generate-ai-btn');
-        const aiSummaryText = document.getElementById('ai-summary-text');
+        const aiSummaryList = document.getElementById('ai-summary-list');
+        const aiEmptyText = document.getElementById('ai-empty-text');
 
-        if (aiButton && aiSummaryText) {
+        function addAiResponse(text) {
+            if (aiEmptyText) {
+                aiEmptyText.remove();
+            }
+
+            const item = document.createElement('div');
+            item.className = 'ai-response-item';
+            item.textContent = text;
+
+            aiSummaryList.prepend(item);
+        }
+
+        if (aiButton && aiSummaryList) {
             aiButton.addEventListener('click', async () => {
                 const dropId = aiButton.getAttribute('data-drop-id');
 
                 aiButton.disabled = true;
                 aiButton.textContent = 'Generuji...';
 
-                aiSummaryText.innerHTML = `
+                const loadingItem = document.createElement('div');
+                loadingItem.className = 'ai-response-item';
+                loadingItem.innerHTML = `
                     <span class="ai-loading">
                         <span>Generuji AI shrnutí</span>
                         <span class="ai-loading-dots">
@@ -312,6 +411,12 @@ if (!$drop) {
                         </span>
                     </span>
                 `;
+
+                if (aiEmptyText) {
+                    aiEmptyText.remove();
+                }
+
+                aiSummaryList.prepend(loadingItem);
 
                 try {
                     const response = await fetch('drop.php?id=' + encodeURIComponent(dropId), {
@@ -327,13 +432,16 @@ if (!$drop) {
 
                     const data = await response.json();
 
+                    loadingItem.remove();
+
                     if (!data.success) {
-                        aiSummaryText.textContent = data.error || 'Nepodařilo se vygenerovat AI shrnutí.';
+                        addAiResponse(data.error || 'Nepodařilo se vygenerovat AI shrnutí.');
                     } else {
-                        aiSummaryText.textContent = data.summary;
+                        addAiResponse(data.summary);
                     }
                 } catch (error) {
-                    aiSummaryText.textContent = 'Došlo k chybě při generování AI shrnutí.';
+                    loadingItem.remove();
+                    addAiResponse('Došlo k chybě při generování AI shrnutí.');
                 } finally {
                     aiButton.disabled = false;
                     aiButton.textContent = 'Vygenerovat AI shrnutí';
