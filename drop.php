@@ -521,22 +521,31 @@ if ($isLoggedIn) {
         const aiButton = document.getElementById('generate-ai-btn');
         const aiSummaryList = document.getElementById('ai-summary-list');
 
-        function removeEmptyText() {
-            const emptyText = document.getElementById('ai-empty-text');
-
-            if (emptyText) {
-                emptyText.remove();
-            }
-        }
-
-        function addAiResponse(text) {
-            removeEmptyText();
+        function setAiResponse(text) {
+            aiSummaryList.innerHTML = '';
 
             const item = document.createElement('div');
             item.className = 'ai-response-item';
             item.textContent = text;
 
             aiSummaryList.appendChild(item);
+        }
+
+        function setAiLoading() {
+            aiSummaryList.innerHTML = '';
+
+            const loadingItem = document.createElement('div');
+            loadingItem.className = 'ai-response-item';
+            loadingItem.innerHTML = `
+                <span class="ai-loading">
+                    <span>Generuji AI shrnutí</span>
+                    <span class="ai-loading-dots">
+                        <span></span><span></span><span></span>
+                    </span>
+                </span>
+            `;
+
+            aiSummaryList.appendChild(loadingItem);
         }
 
         if (aiButton && aiSummaryList) {
@@ -546,20 +555,7 @@ if ($isLoggedIn) {
                 aiButton.disabled = true;
                 aiButton.textContent = 'Generuji...';
 
-                removeEmptyText();
-
-                const loadingItem = document.createElement('div');
-                loadingItem.className = 'ai-response-item';
-                loadingItem.innerHTML = `
-                    <span class="ai-loading">
-                        <span>Generuji AI shrnutí</span>
-                        <span class="ai-loading-dots">
-                            <span></span><span></span><span></span>
-                        </span>
-                    </span>
-                `;
-
-                aiSummaryList.appendChild(loadingItem);
+                setAiLoading();
 
                 try {
                     const response = await fetch('drop.php?id=' + encodeURIComponent(dropId), {
@@ -575,16 +571,13 @@ if ($isLoggedIn) {
 
                     const data = await response.json();
 
-                    loadingItem.remove();
-
                     if (!data.success) {
-                        addAiResponse(data.error || 'Nepodařilo se vygenerovat AI shrnutí.');
+                        setAiResponse(data.error || 'Nepodařilo se vygenerovat AI shrnutí.');
                     } else {
-                        addAiResponse(data.summary);
+                        setAiResponse(data.summary);
                     }
                 } catch (error) {
-                    loadingItem.remove();
-                    addAiResponse('Došlo k chybě při generování AI shrnutí.');
+                    setAiResponse('Došlo k chybě při generování AI shrnutí.');
                 } finally {
                     aiButton.disabled = false;
                     aiButton.textContent = 'Vygenerovat AI shrnutí';
